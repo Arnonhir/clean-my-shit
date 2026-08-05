@@ -27,22 +27,27 @@ const DRIVE_ROOT_PATTERN = /^[A-Za-z]:\\?$/;
 
 let cachedQuickLinks: QuickLink[] | null = null;
 
+// Deliberately not shelling out to PowerShell here (unlike the known-folder
+// lookup below) - a failed/slow/blocked subprocess call would silently
+// come back as an empty list with no error surfaced, which looks exactly
+// like "This PC has no subfolders" with nothing to explain why. Probing
+// every possible drive letter directly is a few dozen fast stat() calls,
+// no external process, nothing to fail silently.
 async function listDrives(): Promise<BrowseFolder[]> {
   if (process.platform !== "win32") return [];
-  try {
-    const out = execFileSync(
-      "powershell.exe",
-      ["-NoProfile", "-Command", "(Get-PSDrive -PSProvider FileSystem).Root"],
-      { encoding: "utf8", timeout: 5000 }
-    );
-    return out
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((root) => ({ name: root, absPath: root }));
-  } catch {
-    return [];
-  }
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const results = await Promise.all(
+    [...letters].map(async (letter) => {
+      const root = `${letter}:\\`;
+      try {
+        await fs.stat(root);
+        return { name: root, absPath: root };
+      } catch {
+        return null; // drive doesn't exist, or isn't ready (e.g. empty optical drive)
+      }
+    })
+  );
+  return results.filter((d): d is BrowseFolder => d !== null);
 }
 
 // Desktop/Documents/etc. aren't always at "<home>/Desktop" — OneDrive's
