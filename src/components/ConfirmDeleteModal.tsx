@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatBytes } from "@/lib/format";
 import type { TranslationKey } from "@/lib/i18n";
+import ProgressBar from "./ProgressBar";
 
 export default function ConfirmDeleteModal({
   count,
@@ -10,6 +11,7 @@ export default function ConfirmDeleteModal({
   onCancel,
   onConfirm,
   deleting,
+  progress,
   t,
 }: {
   count: number;
@@ -17,6 +19,7 @@ export default function ConfirmDeleteModal({
   onCancel: () => void;
   onConfirm: () => void;
   deleting: boolean;
+  progress?: { done: number; total: number; etaSeconds?: number } | null;
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
 }) {
   const [understood, setUnderstood] = useState(false);
@@ -30,18 +33,32 @@ export default function ConfirmDeleteModal({
         <p className="mt-2 text-sm text-neutral-300">
           {t("confirmFreedLine", { size: formatBytes(totalBytes) })}
         </p>
-        <p className="mt-3 rounded-md bg-red-950/50 border border-red-900 p-3 text-sm text-red-300">
-          {t("confirmWarning")}
-        </p>
-        <label className="mt-3 flex items-start gap-2 text-sm text-neutral-300">
-          <input
-            type="checkbox"
-            checked={understood}
-            onChange={(e) => setUnderstood(e.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-red-500"
+
+        {deleting && progress ? (
+          <ProgressBar
+            label={t("deletingProgress")}
+            done={progress.done}
+            total={progress.total}
+            etaSeconds={progress.etaSeconds}
+            t={t}
           />
-          {t("confirmCheckbox")}
-        </label>
+        ) : (
+          <>
+            <p className="mt-3 rounded-md bg-red-950/50 border border-red-900 p-3 text-sm text-red-300">
+              {t("confirmWarning")}
+            </p>
+            <label className="mt-3 flex items-start gap-2 text-sm text-neutral-300">
+              <input
+                type="checkbox"
+                checked={understood}
+                onChange={(e) => setUnderstood(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-red-500"
+              />
+              {t("confirmCheckbox")}
+            </label>
+          </>
+        )}
+
         <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={onCancel}

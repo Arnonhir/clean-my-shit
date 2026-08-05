@@ -30,3 +30,16 @@ export function formatDateTime(ms: number): string {
 export function daysAgo(ms: number): number {
   return Math.floor((Date.now() - ms) / (1000 * 60 * 60 * 24));
 }
+
+// "45s", "3m 20s", "2h 5m" — used for scan/delete ETAs, so always rounds
+// up to avoid promising less time than something will actually take.
+export function formatDuration(seconds: number): string {
+  const s = Math.max(1, Math.ceil(seconds));
+  if (s < 60) return `${s}s`;
+  const minutes = Math.floor(s / 60);
+  const remSeconds = s % 60;
+  if (minutes < 60) return remSeconds > 0 ? `${minutes}m ${remSeconds}s` : `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  return remMinutes > 0 ? `${hours}h ${remMinutes}m` : `${hours}h`;
+}

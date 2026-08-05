@@ -60,7 +60,10 @@ export interface ScanProgress {
   filesScanned: number;
   foldersScanned: number;
   currentPath: string;
-  phase: "walking" | "hashing" | "done";
+  phase: "counting" | "walking" | "hashing" | "done";
+  // Known total for the current phase, so the client can show a real
+  // percentage. Undefined during "counting" (that's what's computing it).
+  total?: number;
 }
 
 // A single thing to delete — either a file or a folder (recursive).
@@ -68,6 +71,11 @@ export interface DeleteRequestItem {
   id: string;
   absPath: string;
   recursive: boolean;
+}
+
+export interface DeleteProgress {
+  done: number;
+  total: number;
 }
 
 export const IMAGE_EXTS = new Set([

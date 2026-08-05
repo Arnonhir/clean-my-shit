@@ -1,15 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { formatBytes } from "@/lib/format";
 import { useLanguage } from "@/lib/useLanguage";
+import { streamNdjson } from "@/lib/streamNdjson";
+import { computeEta, type EtaTracker } from "@/lib/eta";
 import type {
   EmptyFolder,
   FolderAggregate,
   ScannedFile,
+  ScanProgress,
   ScanResults,
 } from "@/lib/types";
+import type { DeleteOutcome } from "@/lib/deletion";
 import type { SelectionMap } from "@/lib/selection";
+import type { TranslationKey } from "@/lib/i18n";
 import FileListSection from "@/components/FileListSection";
 import FolderAggregateSection from "@/components/FolderAggregateSection";
 import DuplicateSection from "@/components/DuplicateSection";
@@ -17,6 +22,7 @@ import EmptyFolderSection from "@/components/EmptyFolderSection";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import FolderBrowser from "@/components/FolderBrowser";
 import ShittinessScale from "@/components/ShittinessScale";
+import ProgressBar from "@/components/ProgressBar";
 
 type TabId =
   | "old"
@@ -30,18 +36,42 @@ type TabId =
   | "empty"
   | "devjunk";
 
+type ScanEvent =
+  | { type: "progress"; progress: ScanProgress }
+  | { type: "done"; results: ScanResults }
+  | { type: "error"; error: string };
+
+type DeleteEvent =
+  | { type: "progress"; done: number; total: number }
+  | { type: "done"; outcome: DeleteOutcome };
+
+const PHASE_LABEL_KEYS: Record<ScanProgress["phase"], TranslationKey> = {
+  counting: "counting",
+  walking: "walking",
+  hashing: "hashing",
+  done: "hashing",
+};
+
 export default function Home() {
   const { lang, setLang, t, dir } = useLanguage();
   const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState<
+    (ScanProgress & { etaSeconds?: number }) | null
+  >(null);
   const [results, setResults] = useState<ScanResults | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("duplicates");
   const [selected, setSelected] = useState<SelectionMap>(new Map());
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState<
+    { done: number; total: number; etaSeconds?: number } | null
+  >(null);
   const [lastDeleteSummary, setLastDeleteSummary] = useState<string | null>(
     null
   );
+  const scanEtaRef = useRef<EtaTracker | null>(null);
+  const deleteEtaRef = useRef<EtaTracker | null>(null);
 
   // Browsing to a different folder makes the currently-shown results stale
   // (they're for whatever was last scanned, not wherever you're looking
@@ -59,19 +89,25 @@ export default function Home() {
     setResults(null);
     setSelected(new Map());
     setScanning(true);
+    setScanProgress(null);
+    scanEtaRef.current = null;
     try {
-      const res = await fetch("/api/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: absPath }),
+      await streamNdjson<ScanEvent>("/api/scan", { path: absPath }, (event) => {
+        if (event.type === "progress") {
+          const p = event.progress;
+          const etaSeconds = computeEta(scanEtaRef, p.phase, p.filesScanned, p.total);
+          setScanProgress({ ...p, etaSeconds });
+        } else if (event.type === "done") {
+          setResults(event.results);
+        } else if (event.type === "error") {
+          setError(event.error);
+        }
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Scan failed");
-      setResults(json);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setScanning(false);
+      setScanProgress(null);
     }
   }
 
@@ -176,21 +212,34 @@ export default function Home() {
 
   async function handleConfirmDelete() {
     setDeleting(true);
+    setDeleteProgress({ done: 0, total: selected.size });
+    deleteEtaRef.current = null;
     const items = [...selected.entries()].map(([id, s]) => ({
       id,
       absPath: s.absPath,
       recursive: s.recursive,
     }));
 
-    const res = await fetch("/api/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items }),
+    // An object wrapper, not a bare `let` — TS's control-flow narrowing
+    // doesn't track mutations made inside a nested closure, and treats a
+    // plain `let outcome = null; ...closure mutates it...; if (!outcome)`
+    // as if outcome could only ever be null after the closure runs.
+    const outcomeBox: { current: DeleteOutcome | null } = { current: null };
+    await streamNdjson<DeleteEvent>("/api/delete", { items }, (event) => {
+      if (event.type === "progress") {
+        const etaSeconds = computeEta(deleteEtaRef, "deleting", event.done, event.total);
+        setDeleteProgress({ done: event.done, total: event.total, etaSeconds });
+      } else if (event.type === "done") {
+        outcomeBox.current = event.outcome;
+      }
     });
-    const outcome: {
-      succeeded: { id: string }[];
-      failed: { item: { id: string }; error: string }[];
-    } = await res.json();
+
+    const outcome = outcomeBox.current;
+    if (!outcome) {
+      setDeleting(false);
+      setDeleteProgress(null);
+      return;
+    }
 
     const deletedIds = new Set(outcome.succeeded.map((i) => i.id));
     const freedBytes = items
@@ -217,6 +266,7 @@ export default function Home() {
     setLastDeleteSummary(summary);
 
     setDeleting(false);
+    setDeleteProgress(null);
     setConfirming(false);
   }
 
@@ -246,7 +296,14 @@ export default function Home() {
       <FolderBrowser onScan={handleScan} onNavigate={handleNavigate} t={t} />
 
       {scanning && (
-        <p className="mt-4 text-sm text-neutral-400">{t("scanning")}</p>
+        <ProgressBar
+          label={t(PHASE_LABEL_KEYS[scanProgress?.phase ?? "counting"])}
+          done={scanProgress?.filesScanned ?? 0}
+          total={scanProgress?.total}
+          etaSeconds={scanProgress?.etaSeconds}
+          detail={scanProgress?.currentPath}
+          t={t}
+        />
       )}
 
       {error && (
@@ -356,6 +413,7 @@ export default function Home() {
           count={selectedCount}
           totalBytes={selectedBytes}
           deleting={deleting}
+          progress={deleteProgress}
           onCancel={() => setConfirming(false)}
           onConfirm={handleConfirmDelete}
           t={t}
