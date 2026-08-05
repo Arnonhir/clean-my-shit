@@ -26,6 +26,7 @@ interface WalkContext {
   onProgress: (p: Partial<ScanProgress>) => void;
   fileCounter: { n: number };
   folderCounter: { n: number };
+  rootPath: string;
 }
 
 // Sums up size/count/newest-file for a folder we're treating as one unit,
@@ -143,7 +144,7 @@ async function walk(
     }
   }
 
-  if (entryCount === 0 && path !== "") {
+  if (entryCount === 0 && path !== ctx.rootPath) {
     ctx.emptyFolders.push({
       id: path,
       name: path.split("/").pop() || path,
@@ -157,6 +158,10 @@ export async function scanFolder(
   rootHandle: FileSystemDirectoryHandle,
   onProgress: (p: Partial<ScanProgress>) => void
 ): Promise<ScanResults> {
+  // Include the picked folder's own name as the base of every relative path,
+  // so a file sitting directly in e.g. "Downloads" is still recognized as
+  // being in a folder named "Downloads" (not just nested ones further down).
+  const rootPath = rootHandle.name;
   const ctx: WalkContext = {
     files: [],
     emptyFolders: [],
@@ -165,10 +170,11 @@ export async function scanFolder(
     onProgress,
     fileCounter: { n: 0 },
     folderCounter: { n: 0 },
+    rootPath,
   };
 
   onProgress({ phase: "walking", filesScanned: 0, foldersScanned: 0 });
-  await walk(rootHandle, "", false, ctx);
+  await walk(rootHandle, rootPath, false, ctx);
 
   onProgress({ phase: "hashing" });
   const duplicates = await findDuplicates(ctx.files, onProgress);
@@ -191,13 +197,24 @@ export async function scanFolder(
     (f) => INSTALLER_EXTS.has(f.ext) && DOWNLOAD_DIR_PATTERN.test(f.path)
   );
 
-  const totalBytes = ctx.files.reduce((sum, f) => sum + f.size, 0);
+  // Dev-junk and game folders are summarized as one unit and never added to
+  // ctx.files, so they have to be added back in here or the totals would
+  // silently undercount anyone with a node_modules or Steam library.
+  const aggregateBytes =
+    ctx.devJunk.reduce((sum, f) => sum + f.size, 0) +
+    ctx.games.reduce((sum, f) => sum + f.size, 0);
+  const aggregateFileCount =
+    ctx.devJunk.reduce((sum, f) => sum + f.fileCount, 0) +
+    ctx.games.reduce((sum, f) => sum + f.fileCount, 0);
+
+  const totalBytes =
+    ctx.files.reduce((sum, f) => sum + f.size, 0) + aggregateBytes;
 
   onProgress({ phase: "done" });
 
   return {
     rootName: rootHandle.name,
-    totalFiles: ctx.files.length,
+    totalFiles: ctx.files.length + aggregateFileCount,
     totalBytes,
     oldFiles,
     bigFiles,
