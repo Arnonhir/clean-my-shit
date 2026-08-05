@@ -7,15 +7,17 @@ export default function EmptyFolderSection({
   folders,
   selected,
   onToggle,
+  emptyMessage,
 }: {
   folders: EmptyFolder[];
   selected: SelectionMap;
   onToggle: (id: string, folder: EmptyFolder) => void;
+  emptyMessage: string;
 }) {
   if (folders.length === 0) {
     return (
       <p className="text-neutral-500 text-sm py-6 text-center">
-        No empty folders found.
+        {emptyMessage}
       </p>
     );
   }

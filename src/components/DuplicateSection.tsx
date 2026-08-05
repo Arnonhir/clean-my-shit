@@ -3,21 +3,24 @@
 import { formatBytes, formatDate } from "@/lib/format";
 import type { DuplicateGroup, ScannedFile } from "@/lib/types";
 import type { SelectionMap } from "@/lib/selection";
+import type { TranslationKey } from "@/lib/i18n";
 import FilePreview from "./FilePreview";
 
 export default function DuplicateSection({
   groups,
   selected,
   onToggle,
+  t,
 }: {
   groups: DuplicateGroup[];
   selected: SelectionMap;
   onToggle: (id: string, file: ScannedFile) => void;
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
 }) {
   if (groups.length === 0) {
     return (
       <p className="text-neutral-500 text-sm py-6 text-center">
-        No duplicate files found. 🎉
+        {t("noDuplicates")}
       </p>
     );
   }
@@ -34,10 +37,13 @@ export default function DuplicateSection({
           >
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs text-neutral-400">
-                {group.files.length} copies · {formatBytes(group.size)} each
+                {t("duplicateCopies", {
+                  count: group.files.length,
+                  size: formatBytes(group.size),
+                })}
                 {!group.verified && (
                   <span className="ml-2 rounded bg-amber-900/40 px-1.5 py-0.5 text-amber-400">
-                    ⚠ not fully verified — very large file, matched by size + start/end only
+                    {t("duplicateUnverified")}
                   </span>
                 )}
               </p>
@@ -59,11 +65,11 @@ export default function DuplicateSection({
                     <p className="truncate text-sm font-medium">{f.name}</p>
                     <p className="truncate text-xs text-neutral-500">{f.path}</p>
                     <p className="text-xs text-neutral-500">
-                      Created/modified {formatDate(f.lastModified)}
+                      {t("duplicateCreated", { date: formatDate(f.lastModified) })}
                     </p>
                     {f.id === oldestId && (
                       <p className="text-xs text-teal-500">
-                        Oldest copy — probably the original
+                        {t("duplicateOldest")}
                       </p>
                     )}
                   </div>

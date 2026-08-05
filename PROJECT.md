@@ -53,10 +53,32 @@ assumed.
 
 ## Deleting files
 
-Deletion happens through the same browser permission the folder picker
-grants — there's a big warning before anything is deleted, because **browser
+The folder picker only asks for **read** access up front — asking for write
+access immediately used to make Chrome refuse to let you pick Downloads,
+Desktop, Documents, or your whole user folder at all (Chrome deliberately
+blocks websites from getting broad write access to those specific folders,
+to stop a site from quietly getting delete-power over them). Write access is
+now requested lazily, only when you actually click delete, and only for the
+folders containing the files you selected.
+
+One real limit this doesn't remove: Chrome still refuses write access to
+those special folders **themselves**, so a file sitting directly inside
+Downloads/Desktop/Documents (not in a subfolder) can be found and shown, but
+can't be one-click deleted from the browser — the app shows a clear message
+for those instead of failing silently, explaining that you'll need to delete
+that one via File Explorer, or scan a subfolder instead if you want to bulk
+delete from inside the app.
+
+There's also a big warning before anything is deleted, because **browser
 deletion is permanent and does not go through the Recycle Bin**. There's no
 undo, so the confirm step is intentionally a little annoying.
+
+## Language
+
+There's a 🌐 toggle in the top-right that switches all UI text between
+English and Hebrew (עברית), including switching the layout to right-to-left
+for Hebrew. Your choice is remembered (saved in the browser) for next time.
+File names/paths themselves aren't translated — only the app's own labels.
 
 ## How to run it locally
 
@@ -90,6 +112,10 @@ Then open http://localhost:3000.
   real internet address yet. Once you `/buddy finish` and deploy, you'll want
   a new shortcut (or just use the real installed PWA) pointing at the real
   URL instead.
+- **Icon is a toilet + poop emoji** (🚽💩) per your request — both
+  `public/icon.svg` (used in-browser/manifest) and `public/app-icon.ico` +
+  `public/icon-256.png` (used by the desktop shortcut) were regenerated to
+  match.
 
 ## Verifying scan logic without the browser
 
