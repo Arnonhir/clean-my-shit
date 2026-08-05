@@ -46,6 +46,8 @@ export interface ScanResults {
   bigFiles: ScannedFile[];
   cacheTemp: ScannedFile[];
   installers: ScannedFile[];
+  newInstallers: ScannedFile[];
+  unusedDocuments: ScannedFile[];
   emptyFolders: EmptyFolder[];
   devJunk: FolderAggregate[];
   unplayedGames: FolderAggregate[];

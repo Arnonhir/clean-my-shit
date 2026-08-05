@@ -5,10 +5,12 @@ import {
   CACHE_TEMP_DIR_PATTERN,
   CACHE_TEMP_EXTS,
   DEV_JUNK_DIR_NAMES,
+  DOCUMENT_EXTS,
   DOWNLOAD_DIR_PATTERN,
   GAME_LIBRARY_DIR_NAMES,
   INSTALLER_EXTS,
   ONE_YEAR_MS,
+  RECENT_INSTALLER_MS,
   extOf,
 } from "./patterns";
 import type {
@@ -209,9 +211,15 @@ export async function scanFolder(
     (f) => CACHE_TEMP_DIR_PATTERN.test(f.path) || CACHE_TEMP_EXTS.has(f.ext)
   );
 
-  const installers = ctx.files.filter(
+  const allInstallers = ctx.files.filter(
     (f) => INSTALLER_EXTS.has(f.ext) && DOWNLOAD_DIR_PATTERN.test(f.path)
   );
+  const installers = allInstallers.filter((f) => now - f.lastModified > RECENT_INSTALLER_MS);
+  const newInstallers = allInstallers.filter((f) => now - f.lastModified <= RECENT_INSTALLER_MS);
+
+  const unusedDocuments = ctx.files
+    .filter((f) => DOCUMENT_EXTS.has(f.ext) && now - f.lastModified > ONE_YEAR_MS)
+    .sort((a, b) => a.lastModified - b.lastModified);
 
   // Dev-junk and game folders are summarized as one unit and never added to
   // ctx.files, so they have to be added back in here or the totals would
@@ -234,6 +242,8 @@ export async function scanFolder(
     oldFiles,
     bigFiles,
     cacheTemp,
+    newInstallers,
+    unusedDocuments,
     installers,
     emptyFolders: ctx.emptyFolders,
     devJunk: ctx.devJunk,

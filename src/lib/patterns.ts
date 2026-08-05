@@ -30,7 +30,24 @@ export const CACHE_TEMP_EXTS = new Set(["tmp", "temp", "log", "dmp", "bak", "old
 export const INSTALLER_EXTS = new Set(["exe", "msi", "dmg", "pkg", "iso"]);
 export const DOWNLOAD_DIR_PATTERN = /(^|[\\/])downloads?([\\/]|$)/i;
 
+export const DOCUMENT_EXTS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "ppt",
+  "pptx",
+  "txt",
+  "rtf",
+  "odt",
+  "ods",
+  "odp",
+  "csv",
+]);
+
 export const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+export const RECENT_INSTALLER_MS = 30 * 24 * 60 * 60 * 1000; // installers newer than this are "New installers", not "Old installers"
 export const BIG_FILE_THRESHOLD_BYTES = 100 * 1024 * 1024; // 100 MB
 export const FULL_HASH_CAP_BYTES = 500 * 1024 * 1024; // 500 MB
 export const QUICK_HASH_CHUNK_BYTES = 64 * 1024;

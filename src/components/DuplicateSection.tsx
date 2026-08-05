@@ -62,8 +62,8 @@ export default function DuplicateSection({
                   />
                   <FilePreview file={f} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{f.name}</p>
-                    <p className="truncate text-xs text-neutral-500">{f.path}</p>
+                    <p className="break-all text-sm font-medium" title={f.name}>{f.name}</p>
+                    <p className="break-all text-xs text-neutral-500" title={f.path}>{f.path}</p>
                     <p className="text-xs text-neutral-500">
                       {t("duplicateCreated", { date: formatDate(f.lastModified) })}
                     </p>

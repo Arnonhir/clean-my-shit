@@ -24,6 +24,8 @@ type TabId =
   | "games"
   | "cache"
   | "installers"
+  | "newInstallers"
+  | "documents"
   | "empty"
   | "devjunk";
 
@@ -90,6 +92,69 @@ export default function Home() {
     () => [...selected.values()].reduce((sum, s) => sum + s.size, 0),
     [selected]
   );
+
+  // Every selectable item in the active tab, as {id, absPath, recursive, size}.
+  // For duplicates, the recommended "keep" copy (oldest per group) is left
+  // out — selecting all shouldn't delete every copy including the original.
+  const categoryItems = useMemo(() => {
+    if (!results) return [];
+    const fileItem = (f: ScannedFile) => ({
+      id: f.id,
+      absPath: f.absPath,
+      recursive: false,
+      size: f.size,
+    });
+    const folderItem = (f: FolderAggregate | EmptyFolder) => ({
+      id: f.id,
+      absPath: f.absPath,
+      recursive: true,
+      size: "size" in f ? f.size : 0,
+    });
+    switch (tab) {
+      case "duplicates":
+        return results.duplicates.flatMap((g) => {
+          const oldestId = g.files[0]?.id;
+          return g.files.filter((f) => f.id !== oldestId).map(fileItem);
+        });
+      case "old":
+        return results.oldFiles.map(fileItem);
+      case "big":
+        return results.bigFiles.map(fileItem);
+      case "cache":
+        return results.cacheTemp.map(fileItem);
+      case "installers":
+        return results.installers.map(fileItem);
+      case "newInstallers":
+        return results.newInstallers.map(fileItem);
+      case "documents":
+        return results.unusedDocuments.map(fileItem);
+      case "games":
+        return results.unplayedGames.map(folderItem);
+      case "empty":
+        return results.emptyFolders.map(folderItem);
+      case "devjunk":
+        return results.devJunk.map(folderItem);
+      default:
+        return [];
+    }
+  }, [results, tab]);
+
+  const allCategorySelected =
+    categoryItems.length > 0 && categoryItems.every((i) => selected.has(i.id));
+
+  function toggleSelectAllCategory() {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (allCategorySelected) {
+        for (const i of categoryItems) next.delete(i.id);
+      } else {
+        for (const i of categoryItems) {
+          next.set(i.id, { absPath: i.absPath, recursive: i.recursive, size: i.size });
+        }
+      }
+      return next;
+    });
+  }
 
   async function handleConfirmDelete() {
     setDeleting(true);
@@ -185,9 +250,22 @@ export default function Home() {
             <TabButton id="games" tab={tab} setTab={setTab} label={t("tabGames")} count={results.unplayedGames.length} />
             <TabButton id="cache" tab={tab} setTab={setTab} label={t("tabCache")} count={results.cacheTemp.length} />
             <TabButton id="installers" tab={tab} setTab={setTab} label={t("tabInstallers")} count={results.installers.length} />
+            <TabButton id="newInstallers" tab={tab} setTab={setTab} label={t("tabNewInstallers")} count={results.newInstallers.length} />
+            <TabButton id="documents" tab={tab} setTab={setTab} label={t("tabDocuments")} count={results.unusedDocuments.length} />
             <TabButton id="empty" tab={tab} setTab={setTab} label={t("tabEmpty")} count={results.emptyFolders.length} />
             <TabButton id="devjunk" tab={tab} setTab={setTab} label={t("tabDevJunk")} count={results.devJunk.length} />
           </div>
+
+          {categoryItems.length > 0 && (
+            <div className="mt-3">
+              <button
+                onClick={toggleSelectAllCategory}
+                className="rounded-md border border-neutral-700 px-3 py-1 text-xs text-neutral-300 hover:bg-neutral-900"
+              >
+                {allCategorySelected ? t("deselectAllCategory") : t("selectAllCategory")}
+              </button>
+            </div>
+          )}
 
           <div className="mt-4">
             {tab === "duplicates" && (
@@ -207,6 +285,12 @@ export default function Home() {
             )}
             {tab === "installers" && (
               <FileListSection files={results.installers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyInstallers")} dateLabel={t("dateDownloaded")} />
+            )}
+            {tab === "newInstallers" && (
+              <FileListSection files={results.newInstallers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyNewInstallers")} dateLabel={t("dateDownloaded")} />
+            )}
+            {tab === "documents" && (
+              <FileListSection files={results.unusedDocuments} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyDocuments")} dateLabel={t("dateLastTouched")} />
             )}
             {tab === "empty" && (
               <EmptyFolderSection folders={results.emptyFolders} selected={selected} onToggle={toggleFolder} emptyMessage={t("emptyEmptyFolders")} />
@@ -286,6 +370,8 @@ function removeDeleted(results: ScanResults, deletedIds: Set<string>): ScanResul
     bigFiles: results.bigFiles.filter((f) => !deletedIds.has(f.id)),
     cacheTemp: results.cacheTemp.filter((f) => !deletedIds.has(f.id)),
     installers: results.installers.filter((f) => !deletedIds.has(f.id)),
+    newInstallers: results.newInstallers.filter((f) => !deletedIds.has(f.id)),
+    unusedDocuments: results.unusedDocuments.filter((f) => !deletedIds.has(f.id)),
     emptyFolders: results.emptyFolders.filter((f) => !deletedIds.has(f.id)),
     devJunk: results.devJunk.filter((f) => !deletedIds.has(f.id)),
     unplayedGames: results.unplayedGames.filter((f) => !deletedIds.has(f.id)),
