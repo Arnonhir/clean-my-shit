@@ -75,6 +75,14 @@ export default function Home() {
     }
   }
 
+  // Selections are per-category — switching tabs drops whatever was picked
+  // in the previous one, so a delete can only ever touch what's currently
+  // on screen.
+  function handleTabChange(next: TabId) {
+    setTab(next);
+    setSelected(new Map());
+  }
+
   function toggleFile(id: string, f: ScannedFile) {
     setSelected((prev) => {
       const next = new Map(prev);
@@ -266,16 +274,16 @@ export default function Home() {
           <ShittinessScale results={results} t={t} />
 
           <div className="mt-6 flex flex-wrap gap-2 border-b border-neutral-800 pb-3">
-            <TabButton id="duplicates" tab={tab} setTab={setTab} icon="👯" label={t("tabDuplicates")} count={results.duplicates.length} />
-            <TabButton id="old" tab={tab} setTab={setTab} icon="⏳" label={t("tabOld")} count={results.oldFiles.length} />
-            <TabButton id="big" tab={tab} setTab={setTab} icon="🐘" label={t("tabBig")} count={results.bigFiles.length} />
-            <TabButton id="games" tab={tab} setTab={setTab} icon="🎮" label={t("tabGames")} count={results.unplayedGames.length} />
-            <TabButton id="cache" tab={tab} setTab={setTab} icon="🗑️" label={t("tabCache")} count={results.cacheTemp.length} />
-            <TabButton id="installers" tab={tab} setTab={setTab} icon="📦" label={t("tabInstallers")} count={results.installers.length} />
-            <TabButton id="newInstallers" tab={tab} setTab={setTab} icon="📥" label={t("tabNewInstallers")} count={results.newInstallers.length} />
-            <TabButton id="documents" tab={tab} setTab={setTab} icon="📄" label={t("tabDocuments")} count={results.unusedDocuments.length} />
-            <TabButton id="empty" tab={tab} setTab={setTab} icon="📭" label={t("tabEmpty")} count={results.emptyFolders.length} />
-            <TabButton id="devjunk" tab={tab} setTab={setTab} icon="🛠️" label={t("tabDevJunk")} count={results.devJunk.length} />
+            <TabButton id="duplicates" tab={tab} setTab={handleTabChange} icon="👯" label={t("tabDuplicates")} count={results.duplicates.length} />
+            <TabButton id="old" tab={tab} setTab={handleTabChange} icon="⏳" label={t("tabOld")} count={results.oldFiles.length} />
+            <TabButton id="big" tab={tab} setTab={handleTabChange} icon="🐘" label={t("tabBig")} count={results.bigFiles.length} />
+            <TabButton id="games" tab={tab} setTab={handleTabChange} icon="🎮" label={t("tabGames")} count={results.unplayedGames.length} />
+            <TabButton id="cache" tab={tab} setTab={handleTabChange} icon="🗑️" label={t("tabCache")} count={results.cacheTemp.length} />
+            <TabButton id="installers" tab={tab} setTab={handleTabChange} icon="📦" label={t("tabInstallers")} count={results.installers.length} />
+            <TabButton id="newInstallers" tab={tab} setTab={handleTabChange} icon="📥" label={t("tabNewInstallers")} count={results.newInstallers.length} />
+            <TabButton id="documents" tab={tab} setTab={handleTabChange} icon="📄" label={t("tabDocuments")} count={results.unusedDocuments.length} />
+            <TabButton id="empty" tab={tab} setTab={handleTabChange} icon="📭" label={t("tabEmpty")} count={results.emptyFolders.length} />
+            <TabButton id="devjunk" tab={tab} setTab={handleTabChange} icon="🛠️" label={t("tabDevJunk")} count={results.devJunk.length} />
           </div>
 
           {categoryItems.length > 0 && (
