@@ -1,12 +1,15 @@
+// Everything here is plain, JSON-serializable data — the scan runs on the
+// server (via Node's real filesystem access, no browser involved), and these
+// shapes travel over fetch() to the client as-is.
+
 export interface ScannedFile {
   id: string; // full relative path, unique
   name: string;
-  path: string; // e.g. "Downloads/old-installer.exe"
+  path: string; // e.g. "Downloads/old-installer.exe" (relative, for display)
+  absPath: string; // real path on disk, used for delete/preview requests
   size: number;
   lastModified: number;
   ext: string;
-  handle: FileSystemFileHandle;
-  parentHandle: FileSystemDirectoryHandle;
 }
 
 // A folder we treat as one unit (a game install, a node_modules, etc.)
@@ -15,17 +18,17 @@ export interface FolderAggregate {
   id: string;
   name: string;
   path: string;
+  absPath: string;
   size: number;
   fileCount: number;
   lastModified: number; // newest file inside, used as "last touched"
-  parentHandle: FileSystemDirectoryHandle;
 }
 
 export interface EmptyFolder {
   id: string;
   name: string;
   path: string;
-  parentHandle: FileSystemDirectoryHandle;
+  absPath: string;
 }
 
 export interface DuplicateGroup {
@@ -54,6 +57,13 @@ export interface ScanProgress {
   foldersScanned: number;
   currentPath: string;
   phase: "walking" | "hashing" | "done";
+}
+
+// A single thing to delete — either a file or a folder (recursive).
+export interface DeleteRequestItem {
+  id: string;
+  absPath: string;
+  recursive: boolean;
 }
 
 export const IMAGE_EXTS = new Set([

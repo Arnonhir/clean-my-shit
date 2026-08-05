@@ -6,24 +6,39 @@ years, huge files, installed games gathering dust, and cache/temp clutter.
 
 ## How it works (the important bit)
 
-This is a normal website — you'll open it from a link, just like any other
-site. But real websites are **not allowed** to reach into your hard drive on
-their own; that would let any site on the internet act like a virus. So
-instead: you click **"Choose a folder to scan"**, pick a folder yourself
-(even a whole drive), and the scanning happens **right there in your
-browser**. Nothing is uploaded to any server — it all stays on your machine.
+This is **one app** — a single local web app you open at
+`http://localhost:3000`, with a desktop shortcut so it opens like a normal
+program. There is no separate tool for anything.
 
-This only works in **Chrome or Edge on a desktop computer** (Windows, Mac, or
-Linux). Phones, tablets, Safari, and Firefox don't support the browser
-feature this relies on (the "File System Access API") — so the app politely
-says so instead of pretending to work.
+Under the hood it's a Next.js app with its own small server running on your
+computer. When you browse to a folder and hit "Scan this folder," the
+**server** (not your browser) reads the files directly through Node's normal
+filesystem access — the same access any program on your computer has. That's
+what makes it possible to scan **Downloads, Desktop, Documents, or your
+whole user folder** with zero restrictions.
+
+(Earlier versions of this app tried to do the scanning inside the browser
+itself, using a browser feature that lets a page ask to open a folder. That
+approach hit a wall: Chrome flatly refuses to let *any* website — including
+this one — touch Downloads/Desktop/Documents/your home folder, on purpose,
+so a malicious site can never get broad access to those folders. There was
+no way around that from inside the browser, so the app was rebuilt to run
+its own local server instead, which sidesteps the problem entirely and
+removes the restriction for every folder, not just some.)
+
+Because the server only runs on **your own computer** and only accepts
+connections from this machine (see "Staying safe" below), this app is
+inherently a "run it on your own computer" tool, not a public multi-user
+website — which fits what it's actually for.
 
 ## The stack (and why)
 
-- **Next.js (TypeScript, App Router)** — the framework. No backend, no
-  database — everything runs client-side in the visitor's browser.
+- **Next.js (TypeScript, App Router)** — both the UI and a small local
+  backend (API routes) in one project.
 - **Tailwind CSS** — styling.
-- No server, no accounts, no data ever leaves the computer it's running on.
+- **`trash`** (npm package) — sends deleted files to the Recycle Bin instead
+  of permanently deleting them.
+- Nothing leaves your computer. No accounts, no cloud, no external requests.
 
 ## What it checks for
 
@@ -34,7 +49,8 @@ says so instead of pretending to work.
 3. **Big files** — anything over 100 MB, biggest first.
 4. **Unplayed games** — folders under common game library locations (Steam,
    Epic, GOG, etc.), using the newest file inside as a "last played" guess.
-   (Browsers can't ask Steam directly, so this is an approximation.)
+   (There's no direct way to ask Steam what you've actually played, so this
+   is an approximation.)
 5. **Cache & temp junk** — folders/files that look like cache, temp, or log
    data.
 6. **Leftover installers** — old .exe/.msi/.dmg/.iso files sitting in a
@@ -53,25 +69,20 @@ assumed.
 
 ## Deleting files
 
-The folder picker only asks for **read** access up front — asking for write
-access immediately used to make Chrome refuse to let you pick Downloads,
-Desktop, Documents, or your whole user folder at all (Chrome deliberately
-blocks websites from getting broad write access to those specific folders,
-to stop a site from quietly getting delete-power over them). Write access is
-now requested lazily, only when you actually click delete, and only for the
-folders containing the files you selected.
+Deletion goes through the Recycle Bin (via the `trash` package) — not a
+permanent delete. There's still a big confirmation warning before anything
+happens, both because it's the responsible default for a tool that deletes
+things, and because there's no folder this app can't reach anymore, so the
+confirmation step matters more, not less.
 
-One real limit this doesn't remove: Chrome still refuses write access to
-those special folders **themselves**, so a file sitting directly inside
-Downloads/Desktop/Documents (not in a subfolder) can be found and shown, but
-can't be one-click deleted from the browser — the app shows a clear message
-for those instead of failing silently, explaining that you'll need to delete
-that one via File Explorer, or scan a subfolder instead if you want to bulk
-delete from inside the app.
+## Browsing to a folder
 
-There's also a big warning before anything is deleted, because **browser
-deletion is permanent and does not go through the Recycle Bin**. There's no
-undo, so the confirm step is intentionally a little annoying.
+There's no native "choose a folder" dialog anymore — instead there's an
+in-app folder browser: quick-link buttons (Home, Desktop, Documents,
+Downloads, Pictures, Videos — resolved from Windows' real folder locations,
+which matters because OneDrive can relocate Desktop/Documents/Pictures away
+from their default spot), a breadcrumb-style folder list, and a text box to
+type/paste a path directly (useful for a different drive, e.g. `D:\Games`).
 
 ## Language
 
@@ -80,81 +91,65 @@ English and Hebrew (עברית), including switching the layout to right-to-left
 for Hebrew. Your choice is remembered (saved in the browser) for next time.
 File names/paths themselves aren't translated — only the app's own labels.
 
+## Staying safe
+
+Since this app can read and delete files anywhere on the computer, two
+things keep that contained to *this* computer:
+
+- The server only listens on `127.0.0.1` (`npm run dev`/`npm start` both
+  pass `-H 127.0.0.1`) — other devices on the same network/WiFi cannot reach
+  it, only processes on this machine.
+- Deletes go to the Recycle Bin, not a permanent delete, and always require
+  the in-app confirmation step first.
+
 ## How to run it locally
 
 ```
 npm run dev
 ```
-Then open http://localhost:3000.
+Then open http://localhost:3000 — or just use the desktop shortcut.
+
+## Desktop icon
+
+There's a real shortcut on your Desktop — "Clean My Sh\*t" — that opens the
+app in its own clean window (`chrome.exe --app=...`, using a separate small
+Chrome profile so it doesn't touch your normal Chrome tabs/history). Icon:
+`public/app-icon-v2.ico` (🚽💩, matching `public/icon.svg`).
+
+**This shortcut needs the local server running** (`npm run dev`) — it's not
+a real internet address yet. `/buddy finish` would deploy this somewhere
+with a real URL, but note that deployment doesn't make sense for *this* app
+in its current form: hosting it publicly would mean the **server's own
+disk** gets scanned, not the visitor's computer. This is meant to run
+locally, one instance per computer — which is also exactly why the app
+integrates the scan+browse+delete server directly instead of being a plain
+static site.
 
 ## Decisions made so far
 
 - **Moved off Google Drive.** The project was first scaffolded in
-  `G:\האחסון שלי\Git`, which turned out to be a Google Drive–synced folder.
-  Installing dependencies there (tens of thousands of small files) was
-  extremely slow and actually corrupted mid-install. The project now lives
-  locally at `C:\Users\user\Projects\clean-my-shit` — keep it here, or
-  anywhere that isn't inside a cloud-synced folder (Google Drive, Dropbox,
-  OneDrive), for the same reason.
-- **App name is literally "Clean My Sh*t"** per your request — used as-is in
-  the page title and manifest.
-- **Desktop icon (for everyone, once it's live)**: the app has a web manifest
-  + icon, so once it's deployed, Chrome/Edge's "Install app" option will put a
-  real icon on the desktop for anyone who visits the link — no separate
-  installer needed.
-- **Desktop icon (for you, right now)**: there's also a real shortcut already
-  on your Desktop — "Clean My Sh\*t" — that opens the app in its own clean
-  window (via `chrome.exe --app=...`, using a separate small Chrome profile
-  so it doesn't touch your normal Chrome tabs/history). The icon file is
-  `public/app-icon.ico` (generated from a teal-broom design to match
-  `public/icon.svg`). **This shortcut only works while the local dev server
-  (`npm run dev`) is running** — it points at `http://localhost:3000`, not a
-  real internet address yet. Once you `/buddy finish` and deploy, you'll want
-  a new shortcut (or just use the real installed PWA) pointing at the real
-  URL instead.
-- **Icon is a toilet + poop emoji** (🚽💩) per your request — both
-  `public/icon.svg` (used in-browser/manifest) and `public/app-icon.ico` +
-  `public/icon-256.png` (used by the desktop shortcut) were regenerated to
-  match.
-
-## Cleaning Downloads/Desktop/Documents: the command-line tool
-
-Chrome has a **hard, unconditional block** on any website getting access to
-Downloads, Desktop, Documents, or your whole user profile folder — the
-picker dialog refuses to let you select them at all, for any site, no matter
-what permission is requested. That's intentional browser security policy
-with no workaround from the web app's side.
-
-So there's a second, separate tool for exactly those folders:
-**`clean-downloads.bat`** (also on your Desktop as "Clean My Sh\*t -
-Downloads Tool") — a command-line version that talks to your real
-filesystem directly through Node, which isn't subject to that browser
-restriction at all. Double-click it (or drag a different folder onto it to
-scan that instead of Downloads) and it will:
-
-- Scan and list everything the web app would find, numbered.
-- Let you type numbers (e.g. `3,5,10-14`) to pick what to delete.
-- Ask for a final "yes" before doing anything.
-- Send deleted items to the **Recycle Bin** — actually safer than the web
-  app's delete, which can't use the Recycle Bin at all due to browser
-  limitations. Anything deleted this way can be restored normally.
-
-Under the hood it reuses the exact same scanning and deletion code as the
-web app (`src/lib/scan.ts`, `src/lib/deletion.ts`) via a small adapter
-(`scripts/node-fs-shim.ts`) that makes Node's filesystem look like the
-browser's File System Access API — so a fix or category added to one
-automatically applies to both.
-
-There's also `scripts/verify-scan.ts` — a read-only version of the same idea
-for quickly checking the scan logic against a real folder without risking
-any deletion:
-
-```
-npx tsx scripts/verify-scan.ts "C:\path\to\a\folder"
-```
+  `G:\האחסון שלי\Git`, a Google Drive–synced folder — installing dependencies
+  there (tens of thousands of small files) was extremely slow and actually
+  corrupted mid-install. The project now lives locally at
+  `C:\Users\user\Projects\clean-my-shit` — keep it here, or anywhere that
+  isn't inside a cloud-synced folder, for the same reason.
+- **App name is literally "Clean My Sh*t"** and the icon is 🚽💩, both per
+  your request — used as-is in the page title, manifest, and desktop icon.
+- **Rebuilt from "browser picks the folder" to "local server does
+  everything."** The original design used the browser's own folder-access
+  feature, which turned out to flatly refuse Downloads/Desktop/Documents/home
+  for every website, no exceptions. Rather than ship two separate tools (a
+  web app for most folders + a command-line tool for the blocked ones), the
+  whole app was rewritten around a local server that has no such
+  restriction — one app, every folder, no exceptions.
+- **Windows "known folder" resolution fixed twice**: once to point Desktop/
+  Documents/Downloads at their *real* location (OneDrive can relocate them),
+  and once to fix Hebrew folder names coming back corrupted from PowerShell
+  (its default output encoding isn't UTF-8 unless forced explicitly).
 
 ## Next steps
 
 - `/buddy save` after you make changes, to create another save point.
-- `/buddy finish` when you're ready to put this on the internet so the link
-  actually works for other people (right now it only runs on this computer).
+- If you ever want this reachable from another device you own (e.g. a
+  laptop), that's a different, smaller project — worth a fresh conversation
+  about what's actually needed, rather than folding it into this one.

@@ -5,12 +5,14 @@ type Vars = Record<string, string | number>;
 const dict = {
   en: {
     tagline:
-      "Pick a folder on your computer. Everything happens right here in your browser — nothing is uploaded anywhere.",
+      "Browse to any folder on this computer — including Downloads, Desktop, and Documents — and scan it. Everything runs locally on this machine; nothing is uploaded anywhere.",
     chooseFolder: "Choose a folder to scan",
     scanning: "Scanning…",
-    unsupportedTitle: "Clean My Sh*t",
-    unsupportedBody:
-      "This tool needs a desktop browser that supports picking a folder directly (Chrome or Edge on Windows, Mac, or Linux). It doesn't work in this browser, or on phones/tablets — that's intentional, since scanning a whole folder only makes sense on a computer.",
+    browseGo: "Go",
+    browseLoading: "Loading…",
+    browseUp: "up",
+    browseEmpty: "No subfolders here.",
+    browseScanThis: "Scan this folder",
     errorPrefix: "Something went wrong:",
     walking: "Looking through your files…",
     hashing: "Checking for duplicates…",
@@ -51,18 +53,19 @@ const dict = {
     confirmDeleteBtn: "Delete permanently",
     confirmDeletingBtn: "Deleting…",
     deleteSummaryDone: "Deleted {count} item(s), freed {size}.",
-    deleteSummaryBlocked:
-      "{count} item(s) couldn't be deleted: Chrome protects this folder from direct deletion (common for Downloads/Desktop/Documents) — delete those in File Explorer, or scan a subfolder instead.",
     deleteSummaryFailed: "{count} item(s) failed (maybe already moved or in use).",
     langToggle: "עברית",
   },
   he: {
-    tagline: "בחר/י תיקייה במחשב שלך. הכול קורה כאן בדפדפן — שום דבר לא מועלה לשום מקום.",
+    tagline:
+      "נווט/י לכל תיקייה במחשב הזה — כולל Downloads, Desktop ו-Documents — וסרוק/י אותה. הכול רץ מקומית על המחשב הזה; שום דבר לא מועלה לשום מקום.",
     chooseFolder: "בחר/י תיקייה לסריקה",
     scanning: "סורק…",
-    unsupportedTitle: "Clean My Sh*t",
-    unsupportedBody:
-      "הכלי הזה דורש דפדפן שולחני שתומך בבחירת תיקייה ישירות (כרום או אדג' על Windows, Mac או Linux). הוא לא עובד בדפדפן הזה, או בטלפונים/טאבלטים — וזה בכוונה, כי סריקת תיקייה שלמה הגיונית רק במחשב.",
+    browseGo: "עבור",
+    browseLoading: "טוען…",
+    browseUp: "למעלה",
+    browseEmpty: "אין תת-תיקיות כאן.",
+    browseScanThis: "סרוק/י תיקייה זו",
     errorPrefix: "משהו השתבש:",
     walking: "עובר על הקבצים שלך…",
     hashing: "בודק כפילויות…",
@@ -103,8 +106,6 @@ const dict = {
     confirmDeleteBtn: "מחק לצמיתות",
     confirmDeletingBtn: "מוחק…",
     deleteSummaryDone: "נמחקו {count} פריט/ים, התפנו {size}.",
-    deleteSummaryBlocked:
-      "{count} פריט/ים לא ניתן היה למחוק: כרום מגן על התיקייה הזו ממחיקה ישירה (נפוץ ב-Downloads/Desktop/Documents) — מחק/י אותם בסייר הקבצים, או סרוק/י תת-תיקייה במקום.",
     deleteSummaryFailed: "{count} פריט/ים נכשלו (אולי הוזזו או בשימוש כרגע).",
     langToggle: "English",
   },

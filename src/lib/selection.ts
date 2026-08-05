@@ -1,6 +1,5 @@
 export interface SelectedItem {
-  name: string;
-  parentHandle: FileSystemDirectoryHandle;
+  absPath: string;
   recursive: boolean;
   size: number;
 }

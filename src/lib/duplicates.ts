@@ -1,33 +1,54 @@
+import { promises as fs } from "node:fs";
+import * as crypto from "node:crypto";
 import { FULL_HASH_CAP_BYTES, QUICK_HASH_CHUNK_BYTES } from "./patterns";
 import type { DuplicateGroup, ScannedFile, ScanProgress } from "./types";
 
-async function sha256Hex(data: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+async function readChunk(absPath: string, start: number, length: number): Promise<Buffer> {
+  const handle = await fs.open(absPath, "r");
+  try {
+    const buf = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(buf, 0, length, start);
+    return bytesRead === length ? buf : buf.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
+function sha256Hex(buf: Buffer): string {
+  return crypto.createHash("sha256").update(buf).digest("hex");
 }
 
 // Fast fingerprint: first + last chunk of the file, so files that only differ
 // near the end (common in videos with identical headers) don't false-match.
 async function quickFingerprint(file: ScannedFile): Promise<string> {
-  const blob = await file.handle.getFile();
-  if (blob.size <= QUICK_HASH_CHUNK_BYTES * 2) {
-    return sha256Hex(await blob.arrayBuffer());
+  if (file.size <= QUICK_HASH_CHUNK_BYTES * 2) {
+    const buf = await readChunk(file.absPath, 0, file.size);
+    return sha256Hex(buf);
   }
-  const head = await blob.slice(0, QUICK_HASH_CHUNK_BYTES).arrayBuffer();
-  const tail = await blob
-    .slice(blob.size - QUICK_HASH_CHUNK_BYTES, blob.size)
-    .arrayBuffer();
-  const combined = new Uint8Array(head.byteLength + tail.byteLength);
-  combined.set(new Uint8Array(head), 0);
-  combined.set(new Uint8Array(tail), head.byteLength);
-  return sha256Hex(combined.buffer);
+  const head = await readChunk(file.absPath, 0, QUICK_HASH_CHUNK_BYTES);
+  const tail = await readChunk(
+    file.absPath,
+    file.size - QUICK_HASH_CHUNK_BYTES,
+    QUICK_HASH_CHUNK_BYTES
+  );
+  return sha256Hex(Buffer.concat([head, tail]));
 }
 
 async function fullHash(file: ScannedFile): Promise<string> {
-  const blob = await file.handle.getFile();
-  return sha256Hex(await blob.arrayBuffer());
+  const hash = crypto.createHash("sha256");
+  const fileHandle = await fs.open(file.absPath, "r");
+  const stream = fileHandle.createReadStream();
+  return new Promise((resolve, reject) => {
+    stream.on("data", (chunk) => hash.update(chunk as Buffer));
+    stream.on("end", () => {
+      fileHandle.close();
+      resolve(hash.digest("hex"));
+    });
+    stream.on("error", (err) => {
+      fileHandle.close();
+      reject(err);
+    });
+  });
 }
 
 export async function findDuplicates(
@@ -46,12 +67,16 @@ export async function findDuplicates(
   const candidates = [...bySize.values()].filter((group) => group.length > 1);
   const groups: DuplicateGroup[] = [];
   let processed = 0;
-  const total = candidates.reduce((n, g) => n + g.length, 0);
 
   for (const group of candidates) {
     const byFingerprint = new Map<string, ScannedFile[]>();
     for (const f of group) {
-      const fp = await quickFingerprint(f);
+      let fp: string;
+      try {
+        fp = await quickFingerprint(f);
+      } catch {
+        continue; // file vanished/unreadable mid-scan
+      }
       const bucket = byFingerprint.get(fp);
       if (bucket) bucket.push(f);
       else byFingerprint.set(fp, [f]);

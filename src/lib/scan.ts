@@ -1,3 +1,5 @@
+import { promises as fs } from "node:fs";
+import * as path from "node:path";
 import {
   BIG_FILE_THRESHOLD_BYTES,
   CACHE_TEMP_DIR_PATTERN,
@@ -32,136 +34,151 @@ interface WalkContext {
 // Sums up size/count/newest-file for a folder we're treating as one unit,
 // without keeping every individual file around.
 async function summarizeFolder(
-  handle: FileSystemDirectoryHandle,
-  path: string
+  absDir: string
 ): Promise<{ size: number; fileCount: number; lastModified: number }> {
   let size = 0;
   let fileCount = 0;
   let lastModified = 0;
-  for await (const [, child] of handle.entries()) {
-    if (child.kind === "file") {
-      const file = await (child as FileSystemFileHandle).getFile();
-      size += file.size;
-      fileCount += 1;
-      if (file.lastModified > lastModified) lastModified = file.lastModified;
-    } else {
-      const sub = await summarizeFolder(
-        child as FileSystemDirectoryHandle,
-        path
-      );
+  let dirents;
+  try {
+    dirents = await fs.readdir(absDir, { withFileTypes: true });
+  } catch {
+    return { size, fileCount, lastModified };
+  }
+  for (const d of dirents) {
+    if (d.isSymbolicLink()) continue;
+    const full = path.join(absDir, d.name);
+    if (d.isDirectory()) {
+      const sub = await summarizeFolder(full);
       size += sub.size;
       fileCount += sub.fileCount;
       if (sub.lastModified > lastModified) lastModified = sub.lastModified;
+    } else if (d.isFile()) {
+      try {
+        const st = await fs.stat(full);
+        size += st.size;
+        fileCount += 1;
+        if (st.mtimeMs > lastModified) lastModified = st.mtimeMs;
+      } catch {
+        // file vanished/unreadable mid-scan — skip it
+      }
     }
   }
   return { size, fileCount, lastModified };
 }
 
 async function walk(
-  dirHandle: FileSystemDirectoryHandle,
-  path: string,
+  absDir: string,
+  relPath: string,
   parentIsGameLibrary: boolean,
   ctx: WalkContext
 ) {
+  let dirents;
+  try {
+    dirents = await fs.readdir(absDir, { withFileTypes: true });
+  } catch (err) {
+    console.warn(`[scan] skipping unreadable folder ${absDir}: ${(err as Error).message}`);
+    return;
+  }
+
   let entryCount = 0;
 
-  for await (const [name, handle] of dirHandle.entries()) {
+  for (const d of dirents) {
     entryCount++;
+    if (d.isSymbolicLink()) continue; // avoid symlink loops
 
-    if (handle.kind === "directory") {
-      const dirHandleTyped = handle as FileSystemDirectoryHandle;
-      const lowerName = name.toLowerCase();
-      const childPath = path ? `${path}/${name}` : name;
+    const absChild = path.join(absDir, d.name);
+    const childPath = relPath ? `${relPath}/${d.name}` : d.name;
+
+    if (d.isDirectory()) {
+      const lowerName = d.name.toLowerCase();
 
       ctx.folderCounter.n++;
       if (ctx.folderCounter.n % 20 === 0) {
-        ctx.onProgress({
-          foldersScanned: ctx.folderCounter.n,
-          currentPath: childPath,
-        });
+        ctx.onProgress({ foldersScanned: ctx.folderCounter.n, currentPath: childPath });
       }
 
       if (DEV_JUNK_DIR_NAMES.has(lowerName)) {
-        const summary = await summarizeFolder(dirHandleTyped, childPath);
+        const summary = await summarizeFolder(absChild);
         if (summary.fileCount > 0) {
           ctx.devJunk.push({
             id: childPath,
-            name,
+            name: d.name,
             path: childPath,
+            absPath: absChild,
             size: summary.size,
             fileCount: summary.fileCount,
             lastModified: summary.lastModified,
-            parentHandle: dirHandle,
           });
         }
         continue;
       }
 
       if (parentIsGameLibrary) {
-        // This directory IS a game install — summarize, don't recurse further.
-        const summary = await summarizeFolder(dirHandleTyped, childPath);
+        const summary = await summarizeFolder(absChild);
         if (summary.fileCount > 0) {
           ctx.games.push({
             id: childPath,
-            name,
+            name: d.name,
             path: childPath,
+            absPath: absChild,
             size: summary.size,
             fileCount: summary.fileCount,
             lastModified: summary.lastModified,
-            parentHandle: dirHandle,
           });
         }
         continue;
       }
 
       const childIsGameLibrary = GAME_LIBRARY_DIR_NAMES.has(lowerName);
-      await walk(dirHandleTyped, childPath, childIsGameLibrary, ctx);
+      await walk(absChild, childPath, childIsGameLibrary, ctx);
       continue;
     }
 
-    // File
-    const fileHandle = handle as FileSystemFileHandle;
-    const file = await fileHandle.getFile();
-    const childPath = path ? `${path}/${name}` : name;
+    if (!d.isFile()) continue;
+
+    let st;
+    try {
+      st = await fs.stat(absChild);
+    } catch {
+      continue; // vanished/unreadable mid-scan
+    }
 
     ctx.files.push({
       id: childPath,
-      name,
+      name: d.name,
       path: childPath,
-      size: file.size,
-      lastModified: file.lastModified,
-      ext: extOf(name),
-      handle: fileHandle,
-      parentHandle: dirHandle,
+      absPath: absChild,
+      size: st.size,
+      lastModified: st.mtimeMs,
+      ext: extOf(d.name),
     });
 
     ctx.fileCounter.n++;
     if (ctx.fileCounter.n % 25 === 0) {
-      ctx.onProgress({
-        filesScanned: ctx.fileCounter.n,
-        currentPath: childPath,
-      });
+      ctx.onProgress({ filesScanned: ctx.fileCounter.n, currentPath: childPath });
     }
   }
 
-  if (entryCount === 0 && path !== ctx.rootPath) {
+  if (entryCount === 0 && relPath !== ctx.rootPath) {
     ctx.emptyFolders.push({
-      id: path,
-      name: path.split("/").pop() || path,
-      path,
-      parentHandle: dirHandle,
+      id: relPath,
+      name: relPath.split("/").pop() || relPath,
+      path: relPath,
+      absPath: absDir,
     });
   }
 }
 
 export async function scanFolder(
-  rootHandle: FileSystemDirectoryHandle,
+  rootAbsPath: string,
   onProgress: (p: Partial<ScanProgress>) => void
 ): Promise<ScanResults> {
   // Include the picked folder's own name as the base of every relative path,
   // so a file sitting directly in e.g. "Downloads" is still recognized as
   // being in a folder named "Downloads" (not just nested ones further down).
-  const rootPath = rootHandle.name;
+  const rootName = path.basename(rootAbsPath);
+  const rootPath = rootName;
   const ctx: WalkContext = {
     files: [],
     emptyFolders: [],
@@ -174,7 +191,7 @@ export async function scanFolder(
   };
 
   onProgress({ phase: "walking", filesScanned: 0, foldersScanned: 0 });
-  await walk(rootHandle, rootPath, false, ctx);
+  await walk(rootAbsPath, rootPath, false, ctx);
 
   onProgress({ phase: "hashing" });
   const duplicates = await findDuplicates(ctx.files, onProgress);
@@ -189,8 +206,7 @@ export async function scanFolder(
     .sort((a, b) => b.size - a.size);
 
   const cacheTemp = ctx.files.filter(
-    (f) =>
-      CACHE_TEMP_DIR_PATTERN.test(f.path) || CACHE_TEMP_EXTS.has(f.ext)
+    (f) => CACHE_TEMP_DIR_PATTERN.test(f.path) || CACHE_TEMP_EXTS.has(f.ext)
   );
 
   const installers = ctx.files.filter(
@@ -207,13 +223,12 @@ export async function scanFolder(
     ctx.devJunk.reduce((sum, f) => sum + f.fileCount, 0) +
     ctx.games.reduce((sum, f) => sum + f.fileCount, 0);
 
-  const totalBytes =
-    ctx.files.reduce((sum, f) => sum + f.size, 0) + aggregateBytes;
+  const totalBytes = ctx.files.reduce((sum, f) => sum + f.size, 0) + aggregateBytes;
 
   onProgress({ phase: "done" });
 
   return {
-    rootName: rootHandle.name,
+    rootName,
     totalFiles: ctx.files.length + aggregateFileCount,
     totalBytes,
     oldFiles,

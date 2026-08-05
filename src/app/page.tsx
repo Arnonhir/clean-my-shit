@@ -1,15 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { scanFolder } from "@/lib/scan";
-import { deleteAll, type Deletable } from "@/lib/deletion";
 import { formatBytes } from "@/lib/format";
 import { useLanguage } from "@/lib/useLanguage";
 import type {
   EmptyFolder,
   FolderAggregate,
   ScannedFile,
-  ScanProgress,
   ScanResults,
 } from "@/lib/types";
 import type { SelectionMap } from "@/lib/selection";
@@ -18,6 +15,7 @@ import FolderAggregateSection from "@/components/FolderAggregateSection";
 import DuplicateSection from "@/components/DuplicateSection";
 import EmptyFolderSection from "@/components/EmptyFolderSection";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
+import FolderBrowser from "@/components/FolderBrowser";
 
 type TabId =
   | "old"
@@ -31,9 +29,7 @@ type TabId =
 
 export default function Home() {
   const { lang, setLang, t, dir } = useLanguage();
-  const [supported, setSupported] = useState<boolean | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [progress, setProgress] = useState<ScanProgress | null>(null);
   const [results, setResults] = useState<ScanResults | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("duplicates");
@@ -44,39 +40,23 @@ export default function Home() {
     null
   );
 
-  useState(() => {
-    if (typeof window !== "undefined") {
-      setSupported("showDirectoryPicker" in window);
-    }
-  });
-
-  async function handlePickFolder() {
+  async function handleScan(absPath: string) {
     setError(null);
     setLastDeleteSummary(null);
+    setResults(null);
+    setSelected(new Map());
+    setScanning(true);
     try {
-      // Read-only at first — some folders (Downloads, Desktop, Documents)
-      // can't be opened at all if we ask for write access up front. We ask
-      // for write access later, only for the specific files being deleted.
-      const dirHandle = await window.showDirectoryPicker();
-      setResults(null);
-      setSelected(new Map());
-      setScanning(true);
-      setProgress({
-        filesScanned: 0,
-        foldersScanned: 0,
-        currentPath: "",
-        phase: "walking",
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: absPath }),
       });
-      const scanResults = await scanFolder(dirHandle, (p) =>
-        setProgress((prev) => ({ ...(prev as ScanProgress), ...p }))
-      );
-      setResults(scanResults);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Scan failed");
+      setResults(json);
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        // user closed the picker — not an error
-      } else {
-        setError(err instanceof Error ? err.message : String(err));
-      }
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setScanning(false);
     }
@@ -86,13 +66,7 @@ export default function Home() {
     setSelected((prev) => {
       const next = new Map(prev);
       if (next.has(id)) next.delete(id);
-      else
-        next.set(id, {
-          name: f.name,
-          parentHandle: f.parentHandle,
-          recursive: false,
-          size: f.size,
-        });
+      else next.set(id, { absPath: f.absPath, recursive: false, size: f.size });
       return next;
     });
   }
@@ -103,8 +77,7 @@ export default function Home() {
       if (next.has(id)) next.delete(id);
       else
         next.set(id, {
-          name: f.name,
-          parentHandle: f.parentHandle,
+          absPath: f.absPath,
           recursive: true,
           size: "size" in f ? f.size : 0,
         });
@@ -120,17 +93,23 @@ export default function Home() {
 
   async function handleConfirmDelete() {
     setDeleting(true);
-    const items: (Deletable & { id: string })[] = [...selected.entries()].map(
-      ([id, s]) => ({
-        id,
-        name: s.name,
-        parentHandle: s.parentHandle,
-        recursive: s.recursive,
-      })
-    );
-    const outcome = await deleteAll(items);
-    const deletedIds = new Set(outcome.succeeded.map((i) => i.id));
+    const items = [...selected.entries()].map(([id, s]) => ({
+      id,
+      absPath: s.absPath,
+      recursive: s.recursive,
+    }));
 
+    const res = await fetch("/api/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+    const outcome: {
+      succeeded: { id: string }[];
+      failed: { item: { id: string }; error: string }[];
+    } = await res.json();
+
+    const deletedIds = new Set(outcome.succeeded.map((i) => i.id));
     const freedBytes = items
       .filter((i) => deletedIds.has(i.id))
       .reduce((sum, i) => {
@@ -145,32 +124,17 @@ export default function Home() {
       return next;
     });
 
-    const blockedCount = outcome.failed.filter((f) => f.blocked).length;
-    const otherFailedCount = outcome.failed.length - blockedCount;
-
     let summary = t("deleteSummaryDone", {
       count: outcome.succeeded.length,
       size: formatBytes(freedBytes),
     });
-    if (blockedCount > 0) {
-      summary += " " + t("deleteSummaryBlocked", { count: blockedCount });
-    }
-    if (otherFailedCount > 0) {
-      summary += " " + t("deleteSummaryFailed", { count: otherFailedCount });
+    if (outcome.failed.length > 0) {
+      summary += " " + t("deleteSummaryFailed", { count: outcome.failed.length });
     }
     setLastDeleteSummary(summary);
 
     setDeleting(false);
     setConfirming(false);
-  }
-
-  if (supported === false) {
-    return (
-      <main dir={dir} className="mx-auto max-w-lg px-4 py-24 text-center">
-        <h1 className="text-2xl font-bold">{t("unsupportedTitle")}</h1>
-        <p className="mt-4 text-neutral-400">{t("unsupportedBody")}</p>
-      </main>
-    );
   }
 
   return (
@@ -186,13 +150,11 @@ export default function Home() {
       </div>
       <p className="mt-1 text-sm text-neutral-400">{t("tagline")}</p>
 
-      <button
-        onClick={handlePickFolder}
-        disabled={scanning}
-        className="mt-6 rounded-lg bg-teal-600 px-5 py-2.5 font-medium text-white hover:bg-teal-500 disabled:opacity-50"
-      >
-        {scanning ? t("scanning") : t("chooseFolder")}
-      </button>
+      <FolderBrowser onScan={handleScan} t={t} />
+
+      {scanning && (
+        <p className="mt-4 text-sm text-neutral-400">{t("scanning")}</p>
+      )}
 
       {error && (
         <p className="mt-4 rounded-md bg-red-950/50 border border-red-900 p-3 text-sm text-red-300">
@@ -204,20 +166,6 @@ export default function Home() {
         <p className="mt-4 rounded-md bg-teal-950/50 border border-teal-900 p-3 text-sm text-teal-300">
           ✅ {lastDeleteSummary}
         </p>
-      )}
-
-      {scanning && progress && (
-        <div className="mt-6 text-sm text-neutral-400">
-          <p>
-            {progress.phase === "walking" && t("walking")}
-            {progress.phase === "hashing" && t("hashing")}
-          </p>
-          <p className="truncate text-xs text-neutral-600">
-            {progress.foldersScanned.toLocaleString()} folders,{" "}
-            {progress.filesScanned.toLocaleString()} files scanned so far
-            {progress.currentPath ? ` · ${progress.currentPath}` : ""}
-          </p>
-        </div>
       )}
 
       {results && (
