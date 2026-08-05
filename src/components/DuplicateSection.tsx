@@ -29,7 +29,7 @@ export default function DuplicateSection({
     <div className="space-y-5">
       {groups.map((group) => (
         <div key={group.id} className="rounded-lg border border-neutral-800 p-3">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <p className="text-xs text-neutral-400">
               {group.changed
                 ? t("duplicateVersions", { count: group.files.length })
@@ -37,17 +37,17 @@ export default function DuplicateSection({
                     count: group.files.length,
                     size: formatBytes(group.size),
                   })}
-              {group.changed && (
-                <span className="ml-2 rounded bg-amber-900/40 px-1.5 py-0.5 text-amber-400">
-                  {t("duplicateChangedBadge")}
-                </span>
-              )}
-              {!group.verified && (
-                <span className="ml-2 rounded bg-amber-900/40 px-1.5 py-0.5 text-amber-400">
-                  {t("duplicateUnverified")}
-                </span>
-              )}
             </p>
+            {group.changed && (
+              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-semibold text-neutral-950">
+                {t("duplicateChangedBadge")}
+              </span>
+            )}
+            {!group.verified && (
+              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs font-semibold text-neutral-950">
+                {t("duplicateUnverified")}
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {group.files.map((f) => (

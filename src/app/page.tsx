@@ -16,6 +16,7 @@ import DuplicateSection from "@/components/DuplicateSection";
 import EmptyFolderSection from "@/components/EmptyFolderSection";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import FolderBrowser from "@/components/FolderBrowser";
+import ShittinessScale from "@/components/ShittinessScale";
 
 type TabId =
   | "old"
@@ -203,8 +204,19 @@ export default function Home() {
 
   return (
     <main dir={dir} className="mx-auto max-w-3xl px-4 py-10 pb-28">
-      <div className="flex items-start justify-between gap-4">
-        <h1 className="text-2xl font-bold">🚽 Clean My Sh*t</h1>
+      <div className="flex items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icon.svg"
+            alt=""
+            className="h-11 w-11 shrink-0 rounded-xl shadow-md shadow-black/40"
+          />
+          <div>
+            <h1 className="text-xl font-bold leading-tight sm:text-2xl">Clean My Sh*t</h1>
+            <p className="text-xs text-neutral-500">{t("tagline")}</p>
+          </div>
+        </div>
         <button
           onClick={() => setLang(lang === "en" ? "he" : "en")}
           className="shrink-0 rounded-full border border-neutral-700 px-3 py-1 text-xs text-neutral-300 hover:bg-neutral-900"
@@ -212,7 +224,6 @@ export default function Home() {
           🌐 {t("langToggle")}
         </button>
       </div>
-      <p className="mt-1 text-sm text-neutral-400">{t("tagline")}</p>
 
       <FolderBrowser onScan={handleScan} t={t} />
 
@@ -242,17 +253,19 @@ export default function Home() {
             })}
           </p>
 
-          <div className="mt-4 flex flex-wrap gap-2 border-b border-neutral-800 pb-3">
-            <TabButton id="duplicates" tab={tab} setTab={setTab} label={t("tabDuplicates")} count={results.duplicates.length} />
-            <TabButton id="old" tab={tab} setTab={setTab} label={t("tabOld")} count={results.oldFiles.length} />
-            <TabButton id="big" tab={tab} setTab={setTab} label={t("tabBig")} count={results.bigFiles.length} />
-            <TabButton id="games" tab={tab} setTab={setTab} label={t("tabGames")} count={results.unplayedGames.length} />
-            <TabButton id="cache" tab={tab} setTab={setTab} label={t("tabCache")} count={results.cacheTemp.length} />
-            <TabButton id="installers" tab={tab} setTab={setTab} label={t("tabInstallers")} count={results.installers.length} />
-            <TabButton id="newInstallers" tab={tab} setTab={setTab} label={t("tabNewInstallers")} count={results.newInstallers.length} />
-            <TabButton id="documents" tab={tab} setTab={setTab} label={t("tabDocuments")} count={results.unusedDocuments.length} />
-            <TabButton id="empty" tab={tab} setTab={setTab} label={t("tabEmpty")} count={results.emptyFolders.length} />
-            <TabButton id="devjunk" tab={tab} setTab={setTab} label={t("tabDevJunk")} count={results.devJunk.length} />
+          <ShittinessScale results={results} t={t} />
+
+          <div className="mt-6 flex flex-wrap gap-2 border-b border-neutral-800 pb-3">
+            <TabButton id="duplicates" tab={tab} setTab={setTab} icon="👯" label={t("tabDuplicates")} count={results.duplicates.length} />
+            <TabButton id="old" tab={tab} setTab={setTab} icon="⏳" label={t("tabOld")} count={results.oldFiles.length} />
+            <TabButton id="big" tab={tab} setTab={setTab} icon="🐘" label={t("tabBig")} count={results.bigFiles.length} />
+            <TabButton id="games" tab={tab} setTab={setTab} icon="🎮" label={t("tabGames")} count={results.unplayedGames.length} />
+            <TabButton id="cache" tab={tab} setTab={setTab} icon="🗑️" label={t("tabCache")} count={results.cacheTemp.length} />
+            <TabButton id="installers" tab={tab} setTab={setTab} icon="📦" label={t("tabInstallers")} count={results.installers.length} />
+            <TabButton id="newInstallers" tab={tab} setTab={setTab} icon="📥" label={t("tabNewInstallers")} count={results.newInstallers.length} />
+            <TabButton id="documents" tab={tab} setTab={setTab} icon="📄" label={t("tabDocuments")} count={results.unusedDocuments.length} />
+            <TabButton id="empty" tab={tab} setTab={setTab} icon="📭" label={t("tabEmpty")} count={results.emptyFolders.length} />
+            <TabButton id="devjunk" tab={tab} setTab={setTab} icon="🛠️" label={t("tabDevJunk")} count={results.devJunk.length} />
           </div>
 
           {categoryItems.length > 0 && (
@@ -338,12 +351,14 @@ function TabButton({
   id,
   tab,
   setTab,
+  icon,
   label,
   count,
 }: {
   id: TabId;
   tab: TabId;
   setTab: (t: TabId) => void;
+  icon: string;
   label: string;
   count: number;
 }) {
@@ -357,7 +372,7 @@ function TabButton({
           : "bg-neutral-900 text-neutral-400 hover:text-neutral-200"
       }`}
     >
-      {label} <span className="opacity-70">({count})</span>
+      <span aria-hidden>{icon}</span> {label} <span className="opacity-70">({count})</span>
     </button>
   );
 }
