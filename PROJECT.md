@@ -76,9 +76,32 @@ Then open http://localhost:3000.
   OneDrive), for the same reason.
 - **App name is literally "Clean My Sh*t"** per your request — used as-is in
   the page title and manifest.
-- **Desktop icon**: the app has a web manifest + icon, so once it's live,
-  Chrome/Edge's "Install app" option will put a real icon on the desktop for
-  anyone who visits the link — no separate installer needed.
+- **Desktop icon (for everyone, once it's live)**: the app has a web manifest
+  + icon, so once it's deployed, Chrome/Edge's "Install app" option will put a
+  real icon on the desktop for anyone who visits the link — no separate
+  installer needed.
+- **Desktop icon (for you, right now)**: there's also a real shortcut already
+  on your Desktop — "Clean My Sh\*t" — that opens the app in its own clean
+  window (via `chrome.exe --app=...`, using a separate small Chrome profile
+  so it doesn't touch your normal Chrome tabs/history). The icon file is
+  `public/app-icon.ico` (generated from a teal-broom design to match
+  `public/icon.svg`). **This shortcut only works while the local dev server
+  (`npm run dev`) is running** — it points at `http://localhost:3000`, not a
+  real internet address yet. Once you `/buddy finish` and deploy, you'll want
+  a new shortcut (or just use the real installed PWA) pointing at the real
+  URL instead.
+
+## Verifying scan logic without the browser
+
+`scripts/verify-scan.ts` + `scripts/node-fs-shim.ts` let you run the app's
+real scanning/duplicate-detection code (unmodified) against any real folder
+via Node, without going through the browser's folder picker — useful for
+checking the logic against messy real-world data quickly. Read-only, never
+deletes anything:
+
+```
+npx tsx scripts/verify-scan.ts "C:\path\to\a\folder"
+```
 
 ## Next steps
 
