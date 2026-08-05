@@ -33,8 +33,10 @@ export interface EmptyFolder {
 
 export interface DuplicateGroup {
   id: string;
-  size: number;
-  verified: boolean; // true = full content hash matched, false = quick fingerprint only
+  size: number; // size of the recommended-keep file (sizes may differ within a "changed" group)
+  verified: boolean; // true = confirmed by content check, false = same size + name only, not hashed
+  changed: boolean; // false = files are byte-identical copies; true = same name family but content has diverged (edited versions)
+  recommendedKeepId: string; // oldest file's id if !changed (probably the original), newest file's id if changed (probably the current version)
   files: ScannedFile[];
 }
 

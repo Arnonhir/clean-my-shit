@@ -56,3 +56,17 @@ export function extOf(name: string): string {
   const dot = name.lastIndexOf(".");
   return dot === -1 ? "" : name.slice(dot + 1).toLowerCase();
 }
+
+// Strips common "another copy of this file" suffixes so "report.pdf",
+// "report (1).pdf", and "report - Copy.pdf" are recognized as the same
+// name family, regardless of whether their content still matches.
+export function familyKey(name: string): string {
+  const dot = name.lastIndexOf(".");
+  const base = dot === -1 ? name : name.slice(0, dot);
+  const ext = dot === -1 ? "" : name.slice(dot);
+  const stripped = base
+    .replace(/\s*\(\d+\)\s*$/, "")
+    .replace(/\s*-\s*copy\s*$/i, "")
+    .replace(/\s+copy\s*$/i, "");
+  return (stripped + ext).toLowerCase();
+}

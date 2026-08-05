@@ -112,10 +112,9 @@ export default function Home() {
     });
     switch (tab) {
       case "duplicates":
-        return results.duplicates.flatMap((g) => {
-          const oldestId = g.files[0]?.id;
-          return g.files.filter((f) => f.id !== oldestId).map(fileItem);
-        });
+        return results.duplicates.flatMap((g) =>
+          g.files.filter((f) => f.id !== g.recommendedKeepId).map(fileItem)
+        );
       case "old":
         return results.oldFiles.map(fileItem);
       case "big":

@@ -27,58 +27,58 @@ export default function DuplicateSection({
 
   return (
     <div className="space-y-5">
-      {groups.map((group) => {
-        // The oldest copy is assumed to be "the original" and left unchecked by default.
-        const oldestId = group.files[0]?.id;
-        return (
-          <div
-            key={group.id}
-            className="rounded-lg border border-neutral-800 p-3"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs text-neutral-400">
-                {t("duplicateCopies", {
-                  count: group.files.length,
-                  size: formatBytes(group.size),
-                })}
-                {!group.verified && (
-                  <span className="ml-2 rounded bg-amber-900/40 px-1.5 py-0.5 text-amber-400">
-                    {t("duplicateUnverified")}
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {group.files.map((f) => (
-                <label
-                  key={f.id}
-                  className="flex items-center gap-3 rounded-md bg-neutral-900 p-2 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(f.id)}
-                    onChange={() => onToggle(f.id, f)}
-                    className="h-4 w-4 shrink-0 accent-teal-500"
-                  />
-                  <FilePreview file={f} />
-                  <div className="min-w-0 flex-1">
-                    <p className="break-all text-sm font-medium" title={f.name}>{f.name}</p>
-                    <p className="break-all text-xs text-neutral-500" title={f.path}>{f.path}</p>
-                    <p className="text-xs text-neutral-500">
-                      {t("duplicateCreated", { date: formatDate(f.lastModified) })}
-                    </p>
-                    {f.id === oldestId && (
-                      <p className="text-xs text-teal-500">
-                        {t("duplicateOldest")}
-                      </p>
-                    )}
-                  </div>
-                </label>
-              ))}
-            </div>
+      {groups.map((group) => (
+        <div key={group.id} className="rounded-lg border border-neutral-800 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs text-neutral-400">
+              {group.changed
+                ? t("duplicateVersions", { count: group.files.length })
+                : t("duplicateCopies", {
+                    count: group.files.length,
+                    size: formatBytes(group.size),
+                  })}
+              {group.changed && (
+                <span className="ml-2 rounded bg-amber-900/40 px-1.5 py-0.5 text-amber-400">
+                  {t("duplicateChangedBadge")}
+                </span>
+              )}
+              {!group.verified && (
+                <span className="ml-2 rounded bg-amber-900/40 px-1.5 py-0.5 text-amber-400">
+                  {t("duplicateUnverified")}
+                </span>
+              )}
+            </p>
           </div>
-        );
-      })}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {group.files.map((f) => (
+              <label
+                key={f.id}
+                className="flex items-center gap-3 rounded-md bg-neutral-900 p-2 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(f.id)}
+                  onChange={() => onToggle(f.id, f)}
+                  className="h-4 w-4 shrink-0 accent-teal-500"
+                />
+                <FilePreview file={f} />
+                <div className="min-w-0 flex-1">
+                  <p className="break-all text-sm font-medium" title={f.name}>{f.name}</p>
+                  <p className="break-all text-xs text-neutral-500" title={f.path}>{f.path}</p>
+                  <p className="text-xs text-neutral-500">
+                    {t("duplicateCreated", { date: formatDate(f.lastModified) })} · {formatBytes(f.size)}
+                  </p>
+                  {f.id === group.recommendedKeepId && (
+                    <p className="text-xs text-teal-500">
+                      {group.changed ? t("duplicateKeepLatest") : t("duplicateOldest")}
+                    </p>
+                  )}
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
