@@ -117,13 +117,37 @@ Then open http://localhost:3000.
   `public/icon-256.png` (used by the desktop shortcut) were regenerated to
   match.
 
-## Verifying scan logic without the browser
+## Cleaning Downloads/Desktop/Documents: the command-line tool
 
-`scripts/verify-scan.ts` + `scripts/node-fs-shim.ts` let you run the app's
-real scanning/duplicate-detection code (unmodified) against any real folder
-via Node, without going through the browser's folder picker — useful for
-checking the logic against messy real-world data quickly. Read-only, never
-deletes anything:
+Chrome has a **hard, unconditional block** on any website getting access to
+Downloads, Desktop, Documents, or your whole user profile folder — the
+picker dialog refuses to let you select them at all, for any site, no matter
+what permission is requested. That's intentional browser security policy
+with no workaround from the web app's side.
+
+So there's a second, separate tool for exactly those folders:
+**`clean-downloads.bat`** (also on your Desktop as "Clean My Sh\*t -
+Downloads Tool") — a command-line version that talks to your real
+filesystem directly through Node, which isn't subject to that browser
+restriction at all. Double-click it (or drag a different folder onto it to
+scan that instead of Downloads) and it will:
+
+- Scan and list everything the web app would find, numbered.
+- Let you type numbers (e.g. `3,5,10-14`) to pick what to delete.
+- Ask for a final "yes" before doing anything.
+- Send deleted items to the **Recycle Bin** — actually safer than the web
+  app's delete, which can't use the Recycle Bin at all due to browser
+  limitations. Anything deleted this way can be restored normally.
+
+Under the hood it reuses the exact same scanning and deletion code as the
+web app (`src/lib/scan.ts`, `src/lib/deletion.ts`) via a small adapter
+(`scripts/node-fs-shim.ts`) that makes Node's filesystem look like the
+browser's File System Access API — so a fix or category added to one
+automatically applies to both.
+
+There's also `scripts/verify-scan.ts` — a read-only version of the same idea
+for quickly checking the scan logic against a real folder without risking
+any deletion:
 
 ```
 npx tsx scripts/verify-scan.ts "C:\path\to\a\folder"
