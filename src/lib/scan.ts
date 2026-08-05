@@ -28,6 +28,7 @@ interface WalkContext {
   emptyFolders: EmptyFolder[];
   devJunk: FolderAggregate[];
   games: FolderAggregate[];
+  aggregateBigFiles: ScannedFile[]; // big files found inside summarized dev-junk/game folders
   onProgress: (p: Partial<ScanProgress>) => void;
   fileCounter: { n: number };
   folderCounter: { n: number };
@@ -36,9 +37,16 @@ interface WalkContext {
 }
 
 // Sums up size/count/newest-file for a folder we're treating as one unit,
-// without keeping every individual file around.
+// without keeping every individual file around. Any individual file over
+// the big-file threshold gets pushed into bigFilesOut regardless - a game
+// install or node_modules being summarized as one unit for its own tab
+// shouldn't make a genuinely huge file inside it invisible to Big Files
+// (this is exactly how a 24GB game data file went missing from Big Files
+// after landing inside a Steam "common" folder).
 async function summarizeFolder(
-  absDir: string
+  absDir: string,
+  relPath: string,
+  bigFilesOut: ScannedFile[]
 ): Promise<{ size: number; fileCount: number; lastModified: number }> {
   let size = 0;
   let fileCount = 0;
@@ -52,8 +60,9 @@ async function summarizeFolder(
   for (const d of dirents) {
     if (d.isSymbolicLink()) continue;
     const full = path.join(absDir, d.name);
+    const childRelPath = relPath ? `${relPath}/${d.name}` : d.name;
     if (d.isDirectory()) {
-      const sub = await summarizeFolder(full);
+      const sub = await summarizeFolder(full, childRelPath, bigFilesOut);
       size += sub.size;
       fileCount += sub.fileCount;
       if (sub.lastModified > lastModified) lastModified = sub.lastModified;
@@ -63,6 +72,17 @@ async function summarizeFolder(
         size += st.size;
         fileCount += 1;
         if (st.mtimeMs > lastModified) lastModified = st.mtimeMs;
+        if (st.size > BIG_FILE_THRESHOLD_BYTES) {
+          bigFilesOut.push({
+            id: childRelPath,
+            name: d.name,
+            path: childRelPath,
+            absPath: full,
+            size: st.size,
+            lastModified: st.mtimeMs,
+            ext: extOf(d.name),
+          });
+        }
       } catch {
         // file vanished/unreadable mid-scan — skip it
       }
@@ -141,7 +161,7 @@ async function walk(
       }
 
       if (DEV_JUNK_DIR_NAMES.has(lowerName)) {
-        const summary = await summarizeFolder(absChild);
+        const summary = await summarizeFolder(absChild, childPath, ctx.aggregateBigFiles);
         if (summary.fileCount > 0) {
           ctx.devJunk.push({
             id: childPath,
@@ -157,7 +177,7 @@ async function walk(
       }
 
       if (parentIsGameLibrary) {
-        const summary = await summarizeFolder(absChild);
+        const summary = await summarizeFolder(absChild, childPath, ctx.aggregateBigFiles);
         if (summary.fileCount > 0) {
           ctx.games.push({
             id: childPath,
@@ -244,6 +264,7 @@ export async function scanFolder(
     emptyFolders: [],
     devJunk: [],
     games: [],
+    aggregateBigFiles: [],
     onProgress: tick,
     fileCounter: { n: 0 },
     folderCounter: { n: 0 },
@@ -262,9 +283,13 @@ export async function scanFolder(
     .filter((f) => now - f.lastModified > ONE_YEAR_MS)
     .sort((a, b) => a.lastModified - b.lastModified);
 
-  const bigFiles = ctx.files
-    .filter((f) => f.size > BIG_FILE_THRESHOLD_BYTES)
-    .sort((a, b) => b.size - a.size);
+  // Includes files found inside summarized dev-junk/game folders (see
+  // summarizeFolder) - otherwise a huge file inside e.g. a Steam game
+  // install would never show up here at all.
+  const bigFiles = [
+    ...ctx.files.filter((f) => f.size > BIG_FILE_THRESHOLD_BYTES),
+    ...ctx.aggregateBigFiles,
+  ].sort((a, b) => b.size - a.size);
 
   const cacheTemp = ctx.files.filter(
     (f) => CACHE_TEMP_DIR_PATTERN.test(f.path) || CACHE_TEMP_EXTS.has(f.ext)
