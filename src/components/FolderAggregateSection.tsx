@@ -18,7 +18,7 @@ export default function FolderAggregateSection({
   dateLabel?: string;
 }) {
   if (folders.length === 0) {
-    return <p className="text-neutral-500 text-sm py-6 text-center">{emptyMessage}</p>;
+    return <p className="text-neutral-400 text-sm py-6 text-center">{emptyMessage}</p>;
   }
 
   return (
@@ -33,7 +33,7 @@ export default function FolderAggregateSection({
           />
           <div className="min-w-0 flex-1">
             <p className="break-all text-sm font-medium" title={f.name}>📁 {f.name}</p>
-            <p className="break-all text-xs text-neutral-500" title={f.path}>
+            <p className="break-all text-xs text-neutral-400" title={f.path}>
               {f.path} · {f.fileCount.toLocaleString()} files
             </p>
           </div>

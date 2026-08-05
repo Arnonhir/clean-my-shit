@@ -20,7 +20,30 @@ export interface QuickLink {
   absPath: string;
 }
 
+// Sentinel "path" for the virtual root that lists every drive - not a real
+// filesystem path, so it's handled specially in browse() below.
+export const THIS_PC = "This PC";
+const DRIVE_ROOT_PATTERN = /^[A-Za-z]:\\?$/;
+
 let cachedQuickLinks: QuickLink[] | null = null;
+
+async function listDrives(): Promise<BrowseFolder[]> {
+  if (process.platform !== "win32") return [];
+  try {
+    const out = execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-Command", "(Get-PSDrive -PSProvider FileSystem).Root"],
+      { encoding: "utf8", timeout: 5000 }
+    );
+    return out
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((root) => ({ name: root, absPath: root }));
+  } catch {
+    return [];
+  }
+}
 
 // Desktop/Documents/etc. aren't always at "<home>/Desktop" — OneDrive's
 // "Known Folder Move" feature can redirect them elsewhere. Ask Windows
@@ -61,6 +84,7 @@ export function getQuickLinks(): QuickLink[] {
 
   const links: QuickLink[] = known
     ? [
+        { label: "This PC", absPath: THIS_PC },
         { label: "Home", absPath: known.Home },
         { label: "Desktop", absPath: known.Desktop },
         { label: "Documents", absPath: known.Documents },
@@ -69,6 +93,7 @@ export function getQuickLinks(): QuickLink[] {
         { label: "Videos", absPath: known.Videos },
       ]
     : [
+        { label: "This PC", absPath: THIS_PC },
         { label: "Home", absPath: home },
         { label: "Desktop", absPath: path.join(home, "Desktop") },
         { label: "Documents", absPath: path.join(home, "Documents") },
@@ -82,6 +107,11 @@ export function getQuickLinks(): QuickLink[] {
 }
 
 export async function browse(targetPath: string): Promise<BrowseResult> {
+  if (targetPath === THIS_PC) {
+    const drives = await listDrives();
+    return { path: THIS_PC, parent: null, folders: drives };
+  }
+
   const resolved = path.resolve(targetPath);
   let dirents;
   try {
@@ -89,7 +119,7 @@ export async function browse(targetPath: string): Promise<BrowseResult> {
   } catch (err) {
     return {
       path: resolved,
-      parent: path.dirname(resolved),
+      parent: DRIVE_ROOT_PATTERN.test(resolved) ? THIS_PC : path.dirname(resolved),
       folders: [],
       error: err instanceof Error ? err.message : String(err),
     };
@@ -100,6 +130,8 @@ export async function browse(targetPath: string): Promise<BrowseResult> {
     .map((d) => ({ name: d.name, absPath: path.join(resolved, d.name) }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const parent = path.dirname(resolved);
+  // A drive root's own dirname is itself on Windows, so it needs its own
+  // case to go "up" to the This PC / drive list instead of dead-ending.
+  const parent = DRIVE_ROOT_PATTERN.test(resolved) ? THIS_PC : path.dirname(resolved);
   return { path: resolved, parent: parent === resolved ? null : parent, folders };
 }

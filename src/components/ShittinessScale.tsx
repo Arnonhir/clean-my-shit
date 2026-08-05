@@ -29,7 +29,7 @@ export default function ShittinessScale({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-medium text-neutral-200">{t("shittyScaleTitle")}</p>
-          <p className="shrink-0 text-sm text-neutral-500">{score}/100</p>
+          <p className="shrink-0 text-sm font-medium text-neutral-300">{score}/100</p>
         </div>
         <div
           className="relative mt-2 h-2.5 rounded-full"
@@ -45,7 +45,7 @@ export default function ShittinessScale({
         <p className="mt-2 text-sm font-semibold" style={{ color: meta.color }}>
           {t(meta.labelKey)}
         </p>
-        <p className="text-xs text-neutral-400">{t(meta.descKey)}</p>
+        <p className="text-xs text-neutral-300">{t(meta.descKey)}</p>
       </div>
       <div className="flex w-24 shrink-0 items-center justify-center overflow-hidden">
         <span style={{ fontSize: emojiSize, lineHeight: 1 }} aria-hidden>

@@ -43,6 +43,16 @@ export default function Home() {
     null
   );
 
+  // Browsing to a different folder makes the currently-shown results stale
+  // (they're for whatever was last scanned, not wherever you're looking
+  // now) - clear them out so it's obvious a new pick is needed.
+  function handleNavigate() {
+    setResults(null);
+    setSelected(new Map());
+    setError(null);
+    setLastDeleteSummary(null);
+  }
+
   async function handleScan(absPath: string) {
     setError(null);
     setLastDeleteSummary(null);
@@ -214,18 +224,18 @@ export default function Home() {
           />
           <div>
             <h1 className="text-xl font-bold leading-tight sm:text-2xl">Clean My Sh*t</h1>
-            <p className="text-xs text-neutral-500">{t("tagline")}</p>
+            <p className="text-xs text-neutral-400">{t("tagline")}</p>
           </div>
         </div>
         <button
           onClick={() => setLang(lang === "en" ? "he" : "en")}
-          className="shrink-0 rounded-full border border-neutral-700 px-3 py-1 text-xs text-neutral-300 hover:bg-neutral-900"
+          className="shrink-0 rounded-full border border-neutral-700 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-900"
         >
           🌐 {t("langToggle")}
         </button>
       </div>
 
-      <FolderBrowser onScan={handleScan} t={t} />
+      <FolderBrowser onScan={handleScan} onNavigate={handleNavigate} t={t} />
 
       {scanning && (
         <p className="mt-4 text-sm text-neutral-400">{t("scanning")}</p>
@@ -284,25 +294,25 @@ export default function Home() {
               <DuplicateSection groups={results.duplicates} selected={selected} onToggle={toggleFile} t={t} />
             )}
             {tab === "old" && (
-              <FileListSection files={results.oldFiles} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyOld")} dateLabel={t("dateLastTouched")} />
+              <FileListSection files={results.oldFiles} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyOld")} dateLabel={t("dateLastTouched")} t={t} />
             )}
             {tab === "big" && (
-              <FileListSection files={results.bigFiles} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyBig")} dateLabel={t("dateLastTouched")} />
+              <FileListSection files={results.bigFiles} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyBig")} dateLabel={t("dateLastTouched")} t={t} />
             )}
             {tab === "games" && (
               <FolderAggregateSection folders={results.unplayedGames} selected={selected} onToggle={toggleFolder} emptyMessage={t("emptyGames")} dateLabel={t("dateLastPlayed")} />
             )}
             {tab === "cache" && (
-              <FileListSection files={results.cacheTemp} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyCache")} dateLabel={t("dateLastTouched")} />
+              <FileListSection files={results.cacheTemp} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyCache")} dateLabel={t("dateLastTouched")} t={t} />
             )}
             {tab === "installers" && (
-              <FileListSection files={results.installers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyInstallers")} dateLabel={t("dateDownloaded")} />
+              <FileListSection files={results.installers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyInstallers")} dateLabel={t("dateDownloaded")} t={t} />
             )}
             {tab === "newInstallers" && (
-              <FileListSection files={results.newInstallers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyNewInstallers")} dateLabel={t("dateDownloaded")} />
+              <FileListSection files={results.newInstallers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyNewInstallers")} dateLabel={t("dateDownloaded")} t={t} />
             )}
             {tab === "documents" && (
-              <FileListSection files={results.unusedDocuments} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyDocuments")} dateLabel={t("dateLastTouched")} />
+              <FileListSection files={results.unusedDocuments} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyDocuments")} dateLabel={t("dateLastTouched")} t={t} />
             )}
             {tab === "empty" && (
               <EmptyFolderSection folders={results.emptyFolders} selected={selected} onToggle={toggleFolder} emptyMessage={t("emptyEmptyFolders")} />

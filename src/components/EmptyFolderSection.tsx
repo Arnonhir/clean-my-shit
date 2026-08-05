@@ -16,7 +16,7 @@ export default function EmptyFolderSection({
 }) {
   if (folders.length === 0) {
     return (
-      <p className="text-neutral-500 text-sm py-6 text-center">
+      <p className="text-neutral-400 text-sm py-6 text-center">
         {emptyMessage}
       </p>
     );
@@ -34,7 +34,7 @@ export default function EmptyFolderSection({
           />
           <div className="min-w-0 flex-1">
             <p className="break-all text-sm font-medium" title={f.name}>📁 {f.name}</p>
-            <p className="break-all text-xs text-neutral-500" title={f.path}>{f.path}</p>
+            <p className="break-all text-xs text-neutral-400" title={f.path}>{f.path}</p>
           </div>
         </li>
       ))}

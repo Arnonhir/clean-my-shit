@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TranslationKey } from "@/lib/i18n";
 
 interface BrowseFolder {
@@ -21,18 +21,29 @@ interface BrowseResponse {
   error?: string;
 }
 
+const THIS_PC = "This PC";
+
 export default function FolderBrowser({
   onScan,
+  onNavigate,
   t,
 }: {
   onScan: (absPath: string) => void;
+  onNavigate?: () => void;
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
 }) {
   const [data, setData] = useState<BrowseResponse | null>(null);
   const [pathInput, setPathInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const isFirstLoad = useRef(true);
 
   async function load(targetPath?: string) {
+    if (!isFirstLoad.current) {
+      onNavigate?.();
+      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    isFirstLoad.current = false;
     setLoading(true);
     const url = targetPath ? `/api/browse?path=${encodeURIComponent(targetPath)}` : "/api/browse";
     const res = await fetch(url);
@@ -44,16 +55,17 @@ export default function FolderBrowser({
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div className="mt-4 rounded-lg border border-neutral-800 p-4">
+    <div ref={rootRef} className="mt-4 rounded-lg border border-neutral-800 p-4 scroll-mt-4">
       <div className="flex flex-wrap gap-2">
         {data?.quickLinks.map((q) => (
           <button
             key={q.absPath}
             onClick={() => load(q.absPath)}
-            className="rounded-full bg-neutral-900 px-3 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
+            className="rounded-full bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700"
           >
             {q.label}
           </button>
@@ -70,18 +82,18 @@ export default function FolderBrowser({
         <input
           value={pathInput}
           onChange={(e) => setPathInput(e.target.value)}
-          className="min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm"
+          className="min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-500"
           spellCheck={false}
         />
         <button
           type="submit"
-          className="shrink-0 rounded-md bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700"
+          className="shrink-0 rounded-md bg-neutral-700 px-3 py-1.5 text-sm text-neutral-100 hover:bg-neutral-600"
         >
           {t("browseGo")}
         </button>
       </form>
 
-      {loading && <p className="mt-3 text-sm text-neutral-500">{t("browseLoading")}</p>}
+      {loading && <p className="mt-3 text-sm text-neutral-400">{t("browseLoading")}</p>}
 
       {!loading && data?.error && (
         <p className="mt-3 rounded-md bg-red-950/50 border border-red-900 p-2 text-sm text-red-300">
@@ -91,21 +103,23 @@ export default function FolderBrowser({
 
       {!loading && data && !data.error && (
         <>
-          <div className="mt-3 flex items-center justify-between">
-            <button
-              onClick={() => onScan(data.path)}
-              className="rounded-md bg-teal-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-teal-500"
-            >
-              {t("browseScanThis")}
-            </button>
-          </div>
+          {data.path !== THIS_PC && (
+            <div className="mt-3 flex items-center justify-between">
+              <button
+                onClick={() => onScan(data.path)}
+                className="rounded-md bg-teal-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-teal-500"
+              >
+                {t("browseScanThis")}
+              </button>
+            </div>
+          )}
 
           <ul className="mt-3 max-h-72 overflow-y-auto divide-y divide-neutral-800">
             {data.parent && (
               <li>
                 <button
                   onClick={() => load(data.parent!)}
-                  className="w-full py-1.5 text-left text-sm text-neutral-400 hover:text-neutral-200"
+                  className="w-full py-1.5 text-left text-sm text-neutral-300 hover:text-white"
                 >
                   .. ({t("browseUp")})
                 </button>
@@ -115,14 +129,14 @@ export default function FolderBrowser({
               <li key={f.absPath}>
                 <button
                   onClick={() => load(f.absPath)}
-                  className="w-full py-1.5 text-left text-sm hover:text-teal-400"
+                  className="w-full py-1.5 text-left text-sm text-neutral-200 hover:text-teal-400"
                 >
                   📁 {f.name}
                 </button>
               </li>
             ))}
             {data.folders.length === 0 && !data.parent && (
-              <li className="py-1.5 text-sm text-neutral-500">{t("browseEmpty")}</li>
+              <li className="py-1.5 text-sm text-neutral-400">{t("browseEmpty")}</li>
             )}
           </ul>
         </>

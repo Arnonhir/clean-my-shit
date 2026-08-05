@@ -19,7 +19,7 @@ export default function DuplicateSection({
 }) {
   if (groups.length === 0) {
     return (
-      <p className="text-neutral-500 text-sm py-6 text-center">
+      <p className="text-neutral-400 text-sm py-6 text-center">
         {t("noDuplicates")}
       </p>
     );
@@ -64,8 +64,8 @@ export default function DuplicateSection({
                 <FilePreview file={f} />
                 <div className="min-w-0 flex-1">
                   <p className="break-all text-sm font-medium" title={f.name}>{f.name}</p>
-                  <p className="break-all text-xs text-neutral-500" title={f.path}>{f.path}</p>
-                  <p className="text-xs text-neutral-500">
+                  <p className="break-all text-xs text-neutral-400" title={f.path}>{f.path}</p>
+                  <p className="text-xs text-neutral-400">
                     {t("duplicateCreated", { date: formatDate(f.lastModified) })} · {formatBytes(f.size)}
                   </p>
                   {f.id === group.recommendedKeepId && (
