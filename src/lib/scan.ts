@@ -7,8 +7,8 @@ import {
   DEV_JUNK_DIR_NAMES,
   DOCUMENT_EXTS,
   DOWNLOAD_DIR_PATTERN,
-  GAME_LIBRARY_DIR_NAMES,
   INSTALLER_EXTS,
+  isGameLibraryDir,
   ONE_YEAR_MS,
   RECENT_INSTALLER_MS,
   extOf,
@@ -179,12 +179,13 @@ async function countFiles(
   } catch {
     return;
   }
+  const absDirName = path.basename(absDir);
   for (const d of dirents) {
     if (d.isSymbolicLink()) continue;
     if (d.isDirectory()) {
       const lowerName = d.name.toLowerCase();
       if (DEV_JUNK_DIR_NAMES.has(lowerName) || parentIsGameLibrary) continue;
-      const childIsGameLibrary = GAME_LIBRARY_DIR_NAMES.has(lowerName);
+      const childIsGameLibrary = isGameLibraryDir(lowerName, absDirName);
       await countFiles(path.join(absDir, d.name), childIsGameLibrary, counter, onTick);
     } else if (d.isFile()) {
       counter.n++;
@@ -209,6 +210,7 @@ async function walk(
     return;
   }
 
+  const absDirName = path.basename(absDir);
   let entryCount = 0;
 
   for (const d of dirents) {
@@ -285,7 +287,7 @@ async function walk(
         continue;
       }
 
-      const childIsGameLibrary = GAME_LIBRARY_DIR_NAMES.has(lowerName);
+      const childIsGameLibrary = isGameLibraryDir(lowerName, absDirName);
       const childSecondLevelName = topLevelName === null ? null : secondLevelName ?? d.name;
       await walk(absChild, childPath, childIsGameLibrary, ctx, childTopLevelName, childSecondLevelName);
       continue;
@@ -343,6 +345,14 @@ export async function scanFolder(
   const rootName = path.basename(rootAbsPath);
   const rootPath = rootName;
 
+  // If the scan starts *inside* a game-library folder (e.g. scanning
+  // "steamapps/common" directly, or drilling into it via the folder-size
+  // diagram), the normal detection - which looks at a folder's bare name
+  // from its parent's perspective while walking - never gets a chance to
+  // see it, since there's no parent walk step for the root itself.
+  const rootParentName = path.basename(path.dirname(rootAbsPath));
+  const rootIsGameLibrary = isGameLibraryDir(rootName.toLowerCase(), rootParentName);
+
   // Ticks within a phase are throttled to a fixed rate regardless of folder
   // size, so a scan with millions of files doesn't turn into tens of
   // thousands of stream writes; phase-boundary announcements below always
@@ -351,7 +361,7 @@ export async function scanFolder(
 
   onProgress({ phase: "counting", filesScanned: 0, foldersScanned: 0, currentPath: "" });
   const countRef = { n: 0 };
-  await countFiles(rootAbsPath, false, countRef, (n) =>
+  await countFiles(rootAbsPath, rootIsGameLibrary, countRef, (n) =>
     tick({ phase: "counting", filesScanned: n, foldersScanned: 0, currentPath: "" })
   );
 
@@ -371,7 +381,7 @@ export async function scanFolder(
   };
 
   onProgress({ phase: "walking", filesScanned: 0, foldersScanned: 0, total: countRef.n });
-  await walk(rootAbsPath, rootPath, false, ctx, null, null);
+  await walk(rootAbsPath, rootPath, rootIsGameLibrary, ctx, null, null);
 
   onProgress({ phase: "hashing", filesScanned: 0 });
   const duplicates = await findDuplicates(ctx.files, tick);

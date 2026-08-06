@@ -15,14 +15,33 @@ export const DEV_JUNK_DIR_NAMES = new Set([
 ]);
 
 // Folders that mark "this directory's children are installed games."
-export const GAME_LIBRARY_DIR_NAMES = new Set([
-  "common", // Steam: steamapps/common/<game>
-  "epic games",
-  "gog games",
-  "riot games",
-  "battle.net",
-  "xboxgames",
-]);
+// "common" needs its parent to actually be "steamapps" - bare-name-only
+// matching on a word that generic is dangerous: Paradox games (Europa
+// Universalis, Crusader Kings, etc.) ship their OWN "common" subfolder for
+// game data (religions, cultures, buildings...), and without this check,
+// scanning inside one of those games directly - which the drill-down
+// diagram makes easy to do by accident - misidentifies every folder in a
+// game's own data directory as a separate "installed game".
+interface GameLibraryMarker {
+  name: string;
+  requiredParent?: string;
+}
+
+export const GAME_LIBRARY_MARKERS: GameLibraryMarker[] = [
+  { name: "common", requiredParent: "steamapps" }, // Steam: steamapps/common/<game>
+  { name: "epic games" },
+  { name: "gog games" },
+  { name: "riot games" },
+  { name: "battle.net" },
+  { name: "xboxgames" },
+];
+
+export function isGameLibraryDir(lowerName: string, parentDirName: string): boolean {
+  const marker = GAME_LIBRARY_MARKERS.find((m) => m.name === lowerName);
+  if (!marker) return false;
+  if (marker.requiredParent && parentDirName.toLowerCase() !== marker.requiredParent) return false;
+  return true;
+}
 
 export const CACHE_TEMP_DIR_PATTERN = /(^|[\\/])(cache|caches|temp|tmp|code cache|gpucache|dxcache|logs?)([\\/]|$)/i;
 export const CACHE_TEMP_EXTS = new Set(["tmp", "temp", "log", "dmp", "bak", "old"]);
