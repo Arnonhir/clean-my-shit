@@ -6,14 +6,17 @@
 // waiting for the whole operation to finish before hearing anything.
 export async function streamNdjson<T = unknown>(
   url: string,
-  body: unknown,
+  body: unknown | undefined,
   onEvent: (event: T) => void
 ): Promise<void> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  // No body -> GET (a plain read, like listing installed software).
+  // A body (even `{}`) -> POST with that body as JSON (scan/delete).
+  const res = await fetch(
+    url,
+    body === undefined
+      ? { method: "GET" }
+      : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+  );
 
   if (!res.body) {
     // Some environments don't support streaming responses - fall back to

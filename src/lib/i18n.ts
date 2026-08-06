@@ -4,6 +4,8 @@ type Vars = Record<string, string | number>;
 
 const dict = {
   en: {
+    modeFiles: "🧹 Clean up files",
+    modeSoftware: "💾 Installed software",
     tagline:
       "Browse to any folder on this computer — including Downloads, Desktop, and Documents — and scan it. Everything runs locally on this machine; nothing is uploaded anywhere.",
     chooseFolder: "Choose a folder to scan",
@@ -88,8 +90,30 @@ const dict = {
     shittyTier3Desc: "This folder has a lot going on. Time to clean up.",
     shittyTier4Label: "Certified Disaster",
     shittyTier4Desc: "This folder is a mess. Start with the biggest tabs below.",
+    softwareTitle: "Installed software",
+    softwareTagline:
+      "Every installed program on this computer, ranked by disk space, with a recommendation for what's worth reviewing. Reads the same list Windows' own 'Apps & Features' does.",
+    softwareListing: "Reading installed programs…",
+    softwareMeasuring: "Measuring {name}…",
+    driveUsageTitle: "Disk usage",
+    driveUsed: "{used} used",
+    driveFree: "{free} free",
+    softwareRecRemove: "Strong candidate to remove",
+    softwareRecReview: "Worth reviewing",
+    softwareRecKeep: "Recently used",
+    softwareLastTouched: "Last touched {date}",
+    softwareInstalled: "Installed {date}",
+    softwareOpenSettings: "Open in Windows Settings to uninstall",
+    softwareOrphanedNote:
+      "{count} more registry entries point to install folders that no longer exist on disk — probably safe leftovers from past uninstalls, not shown above.",
+    softwareSummaryRemove:
+      "You could free up about {size} by removing the {count} program(s) flagged as strong candidates below.",
+    softwareSummaryNone: "Nothing stands out as worth removing — this looks reasonably tidy.",
+    softwareEmpty: "No installed software found with a usable install location.",
   },
   he: {
+    modeFiles: "🧹 ניקוי קבצים",
+    modeSoftware: "💾 תוכנות מותקנות",
     tagline:
       "נווט/י לכל תיקייה במחשב הזה — כולל Downloads, Desktop ו-Documents — וסרוק/י אותה. הכול רץ מקומית על המחשב הזה; שום דבר לא מועלה לשום מקום.",
     chooseFolder: "בחר/י תיקייה לסריקה",
@@ -174,6 +198,26 @@ const dict = {
     shittyTier3Desc: "יש הרבה בלגן בתיקייה הזו. זמן לנקות.",
     shittyTier4Label: "אסון מוכרז",
     shittyTier4Desc: "התיקייה הזו הרוסה. תתחיל/י מהטאבים הכי גדולים למטה.",
+    softwareTitle: "תוכנות מותקנות",
+    softwareTagline:
+      "כל תוכנה מותקנת במחשב הזה, מסודרת לפי שטח דיסק, עם המלצה למה שווה לבדוק. קורא את אותה הרשימה שמופיעה ב'אפליקציות ותכונות' של Windows.",
+    softwareListing: "קורא תוכנות מותקנות…",
+    softwareMeasuring: "מודד את {name}…",
+    driveUsageTitle: "שימוש בדיסק",
+    driveUsed: "{used} בשימוש",
+    driveFree: "{free} פנויים",
+    softwareRecRemove: "מומלץ בחום להסרה",
+    softwareRecReview: "שווה בדיקה",
+    softwareRecKeep: "בשימוש לאחרונה",
+    softwareLastTouched: "נגעו בו לאחרונה ב-{date}",
+    softwareInstalled: "הותקן ב-{date}",
+    softwareOpenSettings: "פתח/י בהגדרות Windows להסרה",
+    softwareOrphanedNote:
+      "עוד {count} רשומות רישום מצביעות על תיקיות התקנה שלא קיימות יותר בדיסק — כנראה שאריות בטוחות מהסרות קודמות, לא מוצגות למעלה.",
+    softwareSummaryRemove:
+      "אפשר לפנות בערך {size} על ידי הסרת {count} התוכנות שסומנו כמומלצות להסרה למטה.",
+    softwareSummaryNone: "שום דבר לא בולט כמומלץ להסרה — זה נראה די מסודר.",
+    softwareEmpty: "לא נמצאו תוכנות מותקנות עם תיקיית התקנה שניתן להשתמש בה.",
   },
 } as const;
 

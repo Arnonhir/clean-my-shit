@@ -94,6 +94,40 @@ export interface DeleteProgress {
   total: number;
 }
 
+export interface DriveSpaceInfo {
+  name: string; // e.g. "C:\"
+  totalBytes: number;
+  usedBytes: number;
+  freeBytes: number;
+}
+
+export type SoftwareRecommendation = "remove" | "review" | "keep";
+
+export interface InstalledApp {
+  id: string;
+  name: string;
+  publisher: string;
+  absPath: string;
+  size: number;
+  fileCount: number;
+  lastModified: number; // newest file inside its install folder - a proxy for "last used"
+  installDate: string; // "YYYY-MM-DD", or "" if the registry didn't have one
+  recommendation: SoftwareRecommendation;
+}
+
+export interface SoftwareAnalysis {
+  drives: DriveSpaceInfo[];
+  apps: InstalledApp[];
+  orphanedRegistryCount: number; // registry entries whose install folder no longer exists on disk
+}
+
+export interface SoftwareProgress {
+  phase: "listing" | "measuring" | "done";
+  done: number;
+  total?: number;
+  currentName?: string;
+}
+
 export const IMAGE_EXTS = new Set([
   "jpg",
   "jpeg",

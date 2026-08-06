@@ -25,6 +25,7 @@ import ShittinessScale from "@/components/ShittinessScale";
 import ProgressBar from "@/components/ProgressBar";
 import FolderSizeBars from "@/components/FolderSizeBars";
 import FolderSunburst from "@/components/FolderSunburst";
+import SoftwarePanel from "@/components/SoftwarePanel";
 
 type TabId =
   | "old"
@@ -56,6 +57,7 @@ const PHASE_LABEL_KEYS: Record<ScanProgress["phase"], TranslationKey> = {
 
 export default function Home() {
   const { lang, setLang, t, dir } = useLanguage();
+  const [mode, setMode] = useState<"files" | "software">("files");
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<
     (ScanProgress & { etaSeconds?: number }) | null
@@ -295,6 +297,25 @@ export default function Home() {
         </button>
       </div>
 
+      <div className="mt-4 flex gap-2">
+        <button
+          onClick={() => setMode("files")}
+          className={`rounded-full px-3 py-1.5 text-sm ${mode === "files" ? "bg-teal-600 text-white" : "bg-neutral-900 text-neutral-400 hover:text-neutral-200"}`}
+        >
+          {t("modeFiles")}
+        </button>
+        <button
+          onClick={() => setMode("software")}
+          className={`rounded-full px-3 py-1.5 text-sm ${mode === "software" ? "bg-teal-600 text-white" : "bg-neutral-900 text-neutral-400 hover:text-neutral-200"}`}
+        >
+          {t("modeSoftware")}
+        </button>
+      </div>
+
+      {mode === "software" && <SoftwarePanel t={t} />}
+
+      {mode === "files" && (
+      <>
       <FolderBrowser onScan={handleScan} onNavigate={handleNavigate} t={t} />
 
       {scanning && (
@@ -426,6 +447,8 @@ export default function Home() {
             </button>
           </div>
         </div>
+      )}
+      </>
       )}
 
       {confirming && (
