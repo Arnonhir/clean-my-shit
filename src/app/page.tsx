@@ -23,6 +23,7 @@ import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import FolderBrowser from "@/components/FolderBrowser";
 import ShittinessScale from "@/components/ShittinessScale";
 import ProgressBar from "@/components/ProgressBar";
+import FolderSizeBars from "@/components/FolderSizeBars";
 
 type TabId =
   | "old"
@@ -329,6 +330,13 @@ export default function Home() {
           </p>
 
           <ShittinessScale results={results} t={t} />
+
+          <FolderSizeBars
+            entries={results.folderSizes}
+            totalBytes={results.totalBytes}
+            onScan={handleScan}
+            t={t}
+          />
 
           <div className="mt-6 flex flex-wrap gap-2 border-b border-neutral-800 pb-3">
             <TabButton id="duplicates" tab={tab} setTab={handleTabChange} icon="👯" label={t("tabDuplicates")} count={results.duplicates.length} />

@@ -40,6 +40,18 @@ export interface DuplicateGroup {
   files: ScannedFile[];
 }
 
+// One top-level subfolder's total size, for the "what's using the space"
+// bar chart. absPath is empty for the synthetic "Other"/loose-files rows,
+// which aren't a single real folder and so aren't individually openable.
+export interface FolderSizeEntry {
+  name: string;
+  absPath: string;
+  size: number;
+  fileCount: number;
+  isLoose?: boolean; // files sitting directly in the scanned root, not in any subfolder
+  isOther?: boolean; // rolled-up tail of the smallest folders, past the display cap
+}
+
 export interface ScanResults {
   rootName: string;
   totalFiles: number;
@@ -54,6 +66,7 @@ export interface ScanResults {
   devJunk: FolderAggregate[];
   unplayedGames: FolderAggregate[];
   duplicates: DuplicateGroup[];
+  folderSizes: FolderSizeEntry[];
 }
 
 export interface ScanProgress {

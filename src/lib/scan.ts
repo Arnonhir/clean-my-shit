@@ -16,6 +16,7 @@ import {
 import type {
   EmptyFolder,
   FolderAggregate,
+  FolderSizeEntry,
   ScanProgress,
   ScannedFile,
   ScanResults,
@@ -23,17 +24,32 @@ import type {
 import { findDuplicates } from "./duplicates";
 import { throttle } from "./throttle";
 
+// Bucket key for files sitting directly in the scanned root, not inside any
+// subfolder - not a real folder, so it can't share a key with an actual name.
+const LOOSE_FILES_KEY = "\0loose";
+
 interface WalkContext {
   files: ScannedFile[];
   emptyFolders: EmptyFolder[];
   devJunk: FolderAggregate[];
   games: FolderAggregate[];
   aggregateBigFiles: ScannedFile[]; // big files found inside summarized dev-junk/game folders
+  topLevelSizes: Map<string, { size: number; fileCount: number }>; // for the "what's using the space" bar chart
   onProgress: (p: Partial<ScanProgress>) => void;
   fileCounter: { n: number };
   folderCounter: { n: number };
   rootPath: string;
   totalFiles: number; // from the pre-count pass, used for percentage
+}
+
+function addToTopLevel(ctx: WalkContext, key: string, size: number, fileCount: number) {
+  const existing = ctx.topLevelSizes.get(key);
+  if (existing) {
+    existing.size += size;
+    existing.fileCount += fileCount;
+  } else {
+    ctx.topLevelSizes.set(key, { size, fileCount });
+  }
 }
 
 // Sums up size/count/newest-file for a folder we're treating as one unit,
@@ -128,7 +144,8 @@ async function walk(
   absDir: string,
   relPath: string,
   parentIsGameLibrary: boolean,
-  ctx: WalkContext
+  ctx: WalkContext,
+  topLevelName: string | null
 ) {
   let dirents;
   try {
@@ -160,6 +177,10 @@ async function walk(
         });
       }
 
+      // If we're still at the root (topLevelName === null), this child IS
+      // the top-level bucket everything beneath it gets attributed to.
+      const childTopLevelName = topLevelName ?? d.name;
+
       if (DEV_JUNK_DIR_NAMES.has(lowerName)) {
         const summary = await summarizeFolder(absChild, childPath, ctx.aggregateBigFiles);
         if (summary.fileCount > 0) {
@@ -172,6 +193,7 @@ async function walk(
             fileCount: summary.fileCount,
             lastModified: summary.lastModified,
           });
+          addToTopLevel(ctx, childTopLevelName, summary.size, summary.fileCount);
         }
         continue;
       }
@@ -188,12 +210,13 @@ async function walk(
             fileCount: summary.fileCount,
             lastModified: summary.lastModified,
           });
+          addToTopLevel(ctx, childTopLevelName, summary.size, summary.fileCount);
         }
         continue;
       }
 
       const childIsGameLibrary = GAME_LIBRARY_DIR_NAMES.has(lowerName);
-      await walk(absChild, childPath, childIsGameLibrary, ctx);
+      await walk(absChild, childPath, childIsGameLibrary, ctx, childTopLevelName);
       continue;
     }
 
@@ -205,6 +228,8 @@ async function walk(
     } catch {
       continue; // vanished/unreadable mid-scan
     }
+
+    addToTopLevel(ctx, topLevelName ?? LOOSE_FILES_KEY, st.size, 1);
 
     ctx.files.push({
       id: childPath,
@@ -265,6 +290,7 @@ export async function scanFolder(
     devJunk: [],
     games: [],
     aggregateBigFiles: [],
+    topLevelSizes: new Map(),
     onProgress: tick,
     fileCounter: { n: 0 },
     folderCounter: { n: 0 },
@@ -273,7 +299,7 @@ export async function scanFolder(
   };
 
   onProgress({ phase: "walking", filesScanned: 0, foldersScanned: 0, total: countRef.n });
-  await walk(rootAbsPath, rootPath, false, ctx);
+  await walk(rootAbsPath, rootPath, false, ctx, null);
 
   onProgress({ phase: "hashing", filesScanned: 0 });
   const duplicates = await findDuplicates(ctx.files, tick);
@@ -317,6 +343,35 @@ export async function scanFolder(
 
   const totalBytes = ctx.files.reduce((sum, f) => sum + f.size, 0) + aggregateBytes;
 
+  // Cap the bar chart to the biggest entries + one "Other" row for the rest,
+  // so a folder with hundreds of subfolders doesn't turn it into an
+  // unreadable wall of slivers.
+  const FOLDER_SIZE_DISPLAY_CAP = 15;
+  const allTopLevel: FolderSizeEntry[] = [...ctx.topLevelSizes.entries()]
+    .filter(([, v]) => v.size > 0)
+    .map(([key, v]) => ({
+      name: key === LOOSE_FILES_KEY ? "" : key,
+      absPath: key === LOOSE_FILES_KEY ? "" : path.join(rootAbsPath, key),
+      size: v.size,
+      fileCount: v.fileCount,
+      isLoose: key === LOOSE_FILES_KEY,
+    }))
+    .sort((a, b) => b.size - a.size);
+
+  const folderSizes: FolderSizeEntry[] =
+    allTopLevel.length <= FOLDER_SIZE_DISPLAY_CAP
+      ? allTopLevel
+      : [
+          ...allTopLevel.slice(0, FOLDER_SIZE_DISPLAY_CAP),
+          {
+            name: "",
+            absPath: "",
+            isOther: true,
+            size: allTopLevel.slice(FOLDER_SIZE_DISPLAY_CAP).reduce((s, e) => s + e.size, 0),
+            fileCount: allTopLevel.slice(FOLDER_SIZE_DISPLAY_CAP).reduce((s, e) => s + e.fileCount, 0),
+          },
+        ];
+
   onProgress({ phase: "done" });
 
   return {
@@ -333,5 +388,6 @@ export async function scanFolder(
     devJunk: ctx.devJunk,
     unplayedGames: ctx.games,
     duplicates,
+    folderSizes,
   };
 }
