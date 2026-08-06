@@ -40,16 +40,19 @@ export interface DuplicateGroup {
   files: ScannedFile[];
 }
 
-// One top-level subfolder's total size, for the "what's using the space"
-// bar chart. absPath is empty for the synthetic "Other"/loose-files rows,
-// which aren't a single real folder and so aren't individually openable.
+// One subfolder's total size, for the "what's using the space" sunburst.
+// absPath is empty for the synthetic "Other"/loose-files rows, which
+// aren't a single real folder and so aren't individually openable.
+// `children` is that same shape one level down (this folder's own
+// subfolders) - two rings deep: top-level folders, then their subfolders.
 export interface FolderSizeEntry {
   name: string;
   absPath: string;
   size: number;
   fileCount: number;
-  isLoose?: boolean; // files sitting directly in the scanned root, not in any subfolder
+  isLoose?: boolean; // files sitting directly in this folder, not in any subfolder
   isOther?: boolean; // rolled-up tail of the smallest folders, past the display cap
+  children: FolderSizeEntry[];
 }
 
 export interface ScanResults {

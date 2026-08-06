@@ -20,13 +20,8 @@ export default function FolderSizeBars({
   const maxSize = Math.max(...entries.map((e) => e.size));
 
   return (
-    <div className="mt-4 rounded-lg border border-neutral-800 bg-neutral-900/50 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-neutral-200">{t("folderSizesTitle")}</p>
-        <p className="shrink-0 text-xs text-neutral-400">{t("folderSizesClickHint")}</p>
-      </div>
-
-      <ul className="mt-3 space-y-2.5">
+    <div className="min-w-0 flex-1">
+      <ul className="max-h-[300px] space-y-2.5 overflow-y-auto pr-1">
         {entries.map((entry) => {
           const label = entry.isLoose
             ? t("folderSizesLooseLabel")

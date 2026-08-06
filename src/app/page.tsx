@@ -24,6 +24,7 @@ import FolderBrowser from "@/components/FolderBrowser";
 import ShittinessScale from "@/components/ShittinessScale";
 import ProgressBar from "@/components/ProgressBar";
 import FolderSizeBars from "@/components/FolderSizeBars";
+import FolderSunburst from "@/components/FolderSunburst";
 
 type TabId =
   | "old"
@@ -331,12 +332,23 @@ export default function Home() {
 
           <ShittinessScale results={results} t={t} />
 
-          <FolderSizeBars
-            entries={results.folderSizes}
-            totalBytes={results.totalBytes}
-            onScan={handleScan}
-            t={t}
-          />
+          <div className="mt-4 rounded-lg border border-neutral-800 bg-neutral-900/50 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-neutral-200">{t("folderSizesTitle")}</p>
+              <p className="shrink-0 text-xs text-neutral-400">{t("folderSizesClickHint")}</p>
+            </div>
+            <div className="mt-3 flex flex-col items-start gap-5 sm:flex-row">
+              <div className="mx-auto w-full max-w-[300px] shrink-0 sm:mx-0">
+                <FolderSunburst entries={results.folderSizes} onScan={handleScan} t={t} />
+              </div>
+              <FolderSizeBars
+                entries={results.folderSizes}
+                totalBytes={results.totalBytes}
+                onScan={handleScan}
+                t={t}
+              />
+            </div>
+          </div>
 
           <div className="mt-6 flex flex-wrap gap-2 border-b border-neutral-800 pb-3">
             <TabButton id="duplicates" tab={tab} setTab={handleTabChange} icon="👯" label={t("tabDuplicates")} count={results.duplicates.length} />

@@ -34,7 +34,12 @@ interface WalkContext {
   devJunk: FolderAggregate[];
   games: FolderAggregate[];
   aggregateBigFiles: ScannedFile[]; // big files found inside summarized dev-junk/game folders
-  topLevelSizes: Map<string, { size: number; fileCount: number }>; // for the "what's using the space" bar chart
+  // Both are for the "what's using the space" sunburst (two rings deep).
+  // topLevelSizes: keyed by top-level folder name.
+  // secondLevelSizes: keyed by `${topLevelName}\0${secondLevelName}` - one
+  // level of nesting, grouped back into a tree when the scan finishes.
+  topLevelSizes: Map<string, { size: number; fileCount: number }>;
+  secondLevelSizes: Map<string, { size: number; fileCount: number }>;
   onProgress: (p: Partial<ScanProgress>) => void;
   fileCounter: { n: number };
   folderCounter: { n: number };
@@ -42,14 +47,62 @@ interface WalkContext {
   totalFiles: number; // from the pre-count pass, used for percentage
 }
 
-function addToTopLevel(ctx: WalkContext, key: string, size: number, fileCount: number) {
-  const existing = ctx.topLevelSizes.get(key);
+function addSize(
+  map: Map<string, { size: number; fileCount: number }>,
+  key: string,
+  size: number,
+  fileCount: number
+) {
+  const existing = map.get(key);
   if (existing) {
     existing.size += size;
     existing.fileCount += fileCount;
   } else {
-    ctx.topLevelSizes.set(key, { size, fileCount });
+    map.set(key, { size, fileCount });
   }
+}
+
+// Attributes a file's size to both rings of the sunburst at once.
+// topLevelName/secondLevelName are the ancestor context *at this point* in
+// the walk - null secondLevelName means "directly in the top-level folder,
+// not in one of its subfolders yet".
+function addSunburstSize(
+  ctx: WalkContext,
+  topLevelName: string | null,
+  secondLevelName: string | null,
+  size: number,
+  fileCount: number
+) {
+  addSize(ctx.topLevelSizes, topLevelName ?? LOOSE_FILES_KEY, size, fileCount);
+  if (topLevelName !== null) {
+    addSize(
+      ctx.secondLevelSizes,
+      `${topLevelName}\0${secondLevelName ?? LOOSE_FILES_KEY}`,
+      size,
+      fileCount
+    );
+  }
+}
+
+// Same idea, for a folder being summarized as one unit (dev-junk/game
+// library) instead of walked file-by-file. Unlike a file, a summarized
+// folder can itself *be* the top-level or second-level identity (its own
+// name), not just contribute to an already-established one.
+function attributeSummarized(
+  ctx: WalkContext,
+  topLevelName: string | null,
+  secondLevelName: string | null,
+  childTopLevelName: string,
+  childName: string,
+  size: number,
+  fileCount: number
+) {
+  addSize(ctx.topLevelSizes, childTopLevelName, size, fileCount);
+  if (topLevelName !== null) {
+    addSize(ctx.secondLevelSizes, `${topLevelName}\0${secondLevelName ?? childName}`, size, fileCount);
+  }
+  // else: this folder IS the top-level entry itself - no second-level
+  // breakdown for it (ring 2 just has a gap there, which is fine).
 }
 
 // Sums up size/count/newest-file for a folder we're treating as one unit,
@@ -145,7 +198,8 @@ async function walk(
   relPath: string,
   parentIsGameLibrary: boolean,
   ctx: WalkContext,
-  topLevelName: string | null
+  topLevelName: string | null,
+  secondLevelName: string | null
 ) {
   let dirents;
   try {
@@ -193,7 +247,15 @@ async function walk(
             fileCount: summary.fileCount,
             lastModified: summary.lastModified,
           });
-          addToTopLevel(ctx, childTopLevelName, summary.size, summary.fileCount);
+          attributeSummarized(
+            ctx,
+            topLevelName,
+            secondLevelName,
+            childTopLevelName,
+            d.name,
+            summary.size,
+            summary.fileCount
+          );
         }
         continue;
       }
@@ -210,13 +272,22 @@ async function walk(
             fileCount: summary.fileCount,
             lastModified: summary.lastModified,
           });
-          addToTopLevel(ctx, childTopLevelName, summary.size, summary.fileCount);
+          attributeSummarized(
+            ctx,
+            topLevelName,
+            secondLevelName,
+            childTopLevelName,
+            d.name,
+            summary.size,
+            summary.fileCount
+          );
         }
         continue;
       }
 
       const childIsGameLibrary = GAME_LIBRARY_DIR_NAMES.has(lowerName);
-      await walk(absChild, childPath, childIsGameLibrary, ctx, childTopLevelName);
+      const childSecondLevelName = topLevelName === null ? null : secondLevelName ?? d.name;
+      await walk(absChild, childPath, childIsGameLibrary, ctx, childTopLevelName, childSecondLevelName);
       continue;
     }
 
@@ -229,7 +300,7 @@ async function walk(
       continue; // vanished/unreadable mid-scan
     }
 
-    addToTopLevel(ctx, topLevelName ?? LOOSE_FILES_KEY, st.size, 1);
+    addSunburstSize(ctx, topLevelName, secondLevelName, st.size, 1);
 
     ctx.files.push({
       id: childPath,
@@ -291,6 +362,7 @@ export async function scanFolder(
     games: [],
     aggregateBigFiles: [],
     topLevelSizes: new Map(),
+    secondLevelSizes: new Map(),
     onProgress: tick,
     fileCounter: { n: 0 },
     folderCounter: { n: 0 },
@@ -299,7 +371,7 @@ export async function scanFolder(
   };
 
   onProgress({ phase: "walking", filesScanned: 0, foldersScanned: 0, total: countRef.n });
-  await walk(rootAbsPath, rootPath, false, ctx, null);
+  await walk(rootAbsPath, rootPath, false, ctx, null, null);
 
   onProgress({ phase: "hashing", filesScanned: 0 });
   const duplicates = await findDuplicates(ctx.files, tick);
@@ -343,34 +415,68 @@ export async function scanFolder(
 
   const totalBytes = ctx.files.reduce((sum, f) => sum + f.size, 0) + aggregateBytes;
 
-  // Cap the bar chart to the biggest entries + one "Other" row for the rest,
-  // so a folder with hundreds of subfolders doesn't turn it into an
-  // unreadable wall of slivers.
-  const FOLDER_SIZE_DISPLAY_CAP = 15;
-  const allTopLevel: FolderSizeEntry[] = [...ctx.topLevelSizes.entries()]
-    .filter(([, v]) => v.size > 0)
-    .map(([key, v]) => ({
-      name: key === LOOSE_FILES_KEY ? "" : key,
-      absPath: key === LOOSE_FILES_KEY ? "" : path.join(rootAbsPath, key),
+  // Caps entries to the biggest `cap` + one "Other" row for the rest, so a
+  // folder with hundreds of subfolders doesn't turn into an unreadable wall
+  // of slivers. The top ring is capped tighter (7 + Other = 8 slots) to
+  // match the validated categorical palette's safe range; child rings share
+  // their parent's hue rather than needing their own distinct color, so
+  // they can afford a slightly bigger cap before folding into "Other".
+  function capAndSort(entries: FolderSizeEntry[], cap: number): FolderSizeEntry[] {
+    const sorted = [...entries].filter((e) => e.size > 0).sort((a, b) => b.size - a.size);
+    if (sorted.length <= cap) return sorted;
+    const tail = sorted.slice(cap);
+    return [
+      ...sorted.slice(0, cap),
+      {
+        name: "",
+        absPath: "",
+        isOther: true,
+        children: [],
+        size: tail.reduce((s, e) => s + e.size, 0),
+        fileCount: tail.reduce((s, e) => s + e.fileCount, 0),
+      },
+    ];
+  }
+
+  // Group the second ring's entries by which top-level folder they belong to.
+  const childrenByParent = new Map<string, FolderSizeEntry[]>();
+  for (const [compositeKey, v] of ctx.secondLevelSizes) {
+    if (v.size <= 0) continue;
+    const sep = compositeKey.indexOf("\0");
+    const parentKey = compositeKey.slice(0, sep);
+    const childKey = compositeKey.slice(sep + 1);
+    const isLoose = childKey === LOOSE_FILES_KEY;
+    const node: FolderSizeEntry = {
+      name: isLoose ? "" : childKey,
+      absPath: isLoose ? "" : path.join(rootAbsPath, parentKey, childKey),
       size: v.size,
       fileCount: v.fileCount,
-      isLoose: key === LOOSE_FILES_KEY,
-    }))
-    .sort((a, b) => b.size - a.size);
+      isLoose,
+      children: [],
+    };
+    const arr = childrenByParent.get(parentKey);
+    if (arr) arr.push(node);
+    else childrenByParent.set(parentKey, [node]);
+  }
 
-  const folderSizes: FolderSizeEntry[] =
-    allTopLevel.length <= FOLDER_SIZE_DISPLAY_CAP
-      ? allTopLevel
-      : [
-          ...allTopLevel.slice(0, FOLDER_SIZE_DISPLAY_CAP),
-          {
-            name: "",
-            absPath: "",
-            isOther: true,
-            size: allTopLevel.slice(FOLDER_SIZE_DISPLAY_CAP).reduce((s, e) => s + e.size, 0),
-            fileCount: allTopLevel.slice(FOLDER_SIZE_DISPLAY_CAP).reduce((s, e) => s + e.fileCount, 0),
-          },
-        ];
+  const TOP_LEVEL_CAP = 7;
+  const CHILD_CAP = 10;
+  const folderSizes: FolderSizeEntry[] = capAndSort(
+    [...ctx.topLevelSizes.entries()]
+      .filter(([, v]) => v.size > 0)
+      .map(([key, v]) => {
+        const isLoose = key === LOOSE_FILES_KEY;
+        return {
+          name: isLoose ? "" : key,
+          absPath: isLoose ? "" : path.join(rootAbsPath, key),
+          size: v.size,
+          fileCount: v.fileCount,
+          isLoose,
+          children: isLoose ? [] : capAndSort(childrenByParent.get(key) ?? [], CHILD_CAP),
+        };
+      }),
+    TOP_LEVEL_CAP
+  );
 
   onProgress({ phase: "done" });
 
