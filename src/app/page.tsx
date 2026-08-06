@@ -273,7 +273,7 @@ export default function Home() {
   }
 
   return (
-    <main dir={dir} className="mx-auto max-w-3xl px-4 py-10 pb-28">
+    <main dir={dir} className="mx-auto w-full max-w-7xl px-4 py-10 pb-28">
       <div className="flex items-center justify-between gap-4 border-b border-neutral-800 pb-4">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -411,7 +411,7 @@ export default function Home() {
 
       {selectedCount > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 backdrop-blur px-4 py-3">
-          <div className="mx-auto flex max-w-3xl items-center justify-between">
+          <div className="mx-auto flex max-w-7xl items-center justify-between">
             <p className="text-sm">
               {t("selectionBar", {
                 count: selectedCount,
