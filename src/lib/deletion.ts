@@ -1,3 +1,4 @@
+import { promises as fs } from "node:fs";
 import trash from "trash";
 import type { DeleteRequestItem } from "./types";
 
@@ -14,28 +15,50 @@ export interface DeleteOutcome {
 // still reporting progress often enough for a meaningful progress bar.
 const CHUNK_SIZE = 100;
 
+// trash() resolving without throwing turned out not to be reliable proof
+// the file is actually gone - it's been observed reporting success on a
+// path that's still there afterward (a cloud-only OneDrive placeholder or a
+// file locked by another program are the likely culprits, but either way
+// the library can't be trusted blindly). Checking the filesystem directly
+// afterward is the only way to report what actually happened.
+async function stillExists(absPath: string): Promise<boolean> {
+  return fs.stat(absPath).then(
+    () => true,
+    () => false
+  );
+}
+
 async function deleteChunk(chunk: DeleteRequestItem[]): Promise<DeleteOutcome> {
   try {
     await trash(chunk.map((i) => i.absPath));
-    return { succeeded: chunk, failed: [] };
   } catch {
-    // Something in the batch failed - fall back to one at a time, just for
-    // this chunk, so a single bad item doesn't take the rest down with it.
-    const succeeded: DeleteRequestItem[] = [];
-    const failed: { item: DeleteRequestItem; error: string }[] = [];
+    // Something in the batch threw - retry one at a time just for this
+    // chunk, so a single bad item doesn't take the rest down with it.
+    // Whether these succeed or throw again, the existence check below is
+    // what actually decides success/failure either way.
     for (const item of chunk) {
       try {
         await trash([item.absPath]);
-        succeeded.push(item);
-      } catch (err) {
-        failed.push({
-          item,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      } catch {
+        // leave it - reported as failed below if it's still on disk
       }
     }
-    return { succeeded, failed };
   }
+
+  const succeeded: DeleteRequestItem[] = [];
+  const failed: { item: DeleteRequestItem; error: string }[] = [];
+  for (const item of chunk) {
+    if (await stillExists(item.absPath)) {
+      failed.push({
+        item,
+        error:
+          "Still on disk after deletion - it may be open in another program, a cloud-only OneDrive file, or protected.",
+      });
+    } else {
+      succeeded.push(item);
+    }
+  }
+  return { succeeded, failed };
 }
 
 // Runs server-side against the real filesystem, so there's no browser

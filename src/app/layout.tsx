@@ -18,8 +18,8 @@ export const metadata: Metadata = {
     "Scan a folder on your computer for duplicates, old files, big files, unplayed games, and cache junk — right in your browser.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/icon-256.png",
+    apple: "/icon-256.png",
   },
 };
 

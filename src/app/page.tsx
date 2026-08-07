@@ -26,6 +26,8 @@ import ProgressBar from "@/components/ProgressBar";
 import FolderSizeBars from "@/components/FolderSizeBars";
 import FolderSunburst from "@/components/FolderSunburst";
 import SoftwarePanel from "@/components/SoftwarePanel";
+import FeedbackButton from "@/components/FeedbackButton";
+import UpdateButton from "@/components/UpdateButton";
 
 type TabId =
   | "old"
@@ -71,9 +73,9 @@ export default function Home() {
   const [deleteProgress, setDeleteProgress] = useState<
     { done: number; total: number; etaSeconds?: number } | null
   >(null);
-  const [lastDeleteSummary, setLastDeleteSummary] = useState<string | null>(
-    null
-  );
+  const [lastDeleteSummary, setLastDeleteSummary] = useState<
+    { text: string; hadFailures: boolean } | null
+  >(null);
   const scanEtaRef = useRef<EtaTracker | null>(null);
   const deleteEtaRef = useRef<EtaTracker | null>(null);
 
@@ -113,6 +115,14 @@ export default function Home() {
       setScanning(false);
       setScanProgress(null);
     }
+  }
+
+  // Lets Drive Analysis's "Scan this folder" links drop the user straight
+  // into a real file-cleanup scan of that folder, instead of just pointing
+  // them at it and making them switch modes and browse there themselves.
+  function handleScanFromSoftware(absPath: string) {
+    setMode("files");
+    handleScan(absPath);
   }
 
   // Selections are per-category — switching tabs drops whatever was picked
@@ -264,10 +274,11 @@ export default function Home() {
       count: outcome.succeeded.length,
       size: formatBytes(freedBytes),
     });
-    if (outcome.failed.length > 0) {
+    const hadFailures = outcome.failed.length > 0;
+    if (hadFailures) {
       summary += " " + t("deleteSummaryFailed", { count: outcome.failed.length });
     }
-    setLastDeleteSummary(summary);
+    setLastDeleteSummary({ text: summary, hadFailures });
 
     setDeleting(false);
     setDeleteProgress(null);
@@ -276,14 +287,12 @@ export default function Home() {
 
   return (
     <main dir={dir} className="mx-auto w-full max-w-7xl px-4 py-10 pb-28">
+      <FeedbackButton t={t} />
+      <UpdateButton t={t} />
       <div className="flex items-center justify-between gap-4 border-b border-neutral-800 pb-4">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/icon.svg"
-            alt=""
-            className="h-11 w-11 shrink-0 rounded-xl shadow-md shadow-black/40"
-          />
+          <img src="/icon-128.png" alt="" className="h-11 w-11 shrink-0" />
           <div>
             <h1 className="text-xl font-bold leading-tight sm:text-2xl">Clean My Sh*t</h1>
             <p className="text-xs text-neutral-400">{t("tagline")}</p>
@@ -312,7 +321,7 @@ export default function Home() {
         </button>
       </div>
 
-      {mode === "software" && <SoftwarePanel t={t} />}
+      {mode === "software" && <SoftwarePanel t={t} onScanFolder={handleScanFromSoftware} />}
 
       {mode === "files" && (
       <>
@@ -336,8 +345,14 @@ export default function Home() {
       )}
 
       {lastDeleteSummary && (
-        <p className="mt-4 rounded-md bg-teal-950/50 border border-teal-900 p-3 text-sm text-teal-300">
-          ✅ {lastDeleteSummary}
+        <p
+          className={`mt-4 rounded-md border p-3 text-sm ${
+            lastDeleteSummary.hadFailures
+              ? "border-amber-900 bg-amber-950/40 text-amber-200"
+              : "border-teal-900 bg-teal-950/50 text-teal-300"
+          }`}
+        >
+          {lastDeleteSummary.hadFailures ? "⚠️" : "✅"} {lastDeleteSummary.text}
         </p>
       )}
 

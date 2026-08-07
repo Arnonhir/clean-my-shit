@@ -103,6 +103,15 @@ export interface DriveSpaceInfo {
 
 export type SoftwareRecommendation = "remove" | "review" | "keep";
 
+// Which criterion actually triggered the recommendation, so the UI can
+// explain *why* instead of just showing a bare "remove"/"review" badge.
+export type RecommendationTrigger = "sizeAndStale" | "size" | "staleness" | "none";
+
+// Where an entry was found - the registry alone misses Store apps (which
+// have their own separate package list) and games installed to a library
+// folder without ever registering an Uninstall entry.
+export type SoftwareSource = "registry" | "appx" | "gameFolder";
+
 export interface InstalledApp {
   id: string;
   name: string;
@@ -113,10 +122,13 @@ export interface InstalledApp {
   lastModified: number; // newest file inside its install folder - a proxy for "last used"
   installDate: string; // "YYYY-MM-DD", or "" if the registry didn't have one
   recommendation: SoftwareRecommendation;
+  recommendationTrigger: RecommendationTrigger;
+  ageDays: number;
+  source: SoftwareSource;
 }
 
 export interface SoftwareAnalysis {
-  drives: DriveSpaceInfo[];
+  drive: string; // the drive that was analyzed, e.g. "C:\"
   apps: InstalledApp[];
   orphanedRegistryCount: number; // registry entries whose install folder no longer exists on disk
 }
@@ -125,6 +137,27 @@ export interface SoftwareProgress {
   phase: "listing" | "measuring" | "done";
   done: number;
   total?: number;
+  currentName?: string;
+}
+
+export interface UserDataFolderSummary {
+  label: string; // "Desktop", "Documents", etc.
+  absPath: string;
+  totalBytes: number;
+  reclaimableBytes: number;
+  shittinessScore: number;
+  shittinessTier: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface UserDataAnalysis {
+  folders: UserDataFolderSummary[];
+  totalReclaimableBytes: number;
+}
+
+export interface UserDataProgress {
+  phase: "scanning" | "done";
+  done: number;
+  total: number;
   currentName?: string;
 }
 

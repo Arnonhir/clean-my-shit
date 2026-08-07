@@ -2,13 +2,19 @@
   "name": "clean-my-shit",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
+    "postbuild": "node electron/prepare-standalone.mjs",
     "start": "next start -H 127.0.0.1",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron": "electron .",
+    "dist": "npm run build && electron-builder",
+    "release": "npm run build && electron-builder --publish always"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -19,9 +25,36 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.arnon.cleanmyshit",
+    "productName": "Clean My Sh_t",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*"
+    ],
+    "afterPack": "electron/after-pack.cjs",
+    "publish": {
+      "provider": "github",
+      "owner": "arnonhir",
+      "repo": "clean-my-shit"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "public/app-icon-v2.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
   }
 }

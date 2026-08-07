@@ -5,21 +5,27 @@ export interface Shittiness {
   tier: 0 | 1 | 2 | 3 | 4;
 }
 
-// A rough "how much of this folder is junk" score: mostly driven by how many
-// bytes could actually be reclaimed (duplicate extra copies, cache/temp,
-// old installers, dev build junk), with a smaller bump for clutter that's
-// annoying even when it's not much data (lots of duplicate groups, empty
-// folders, a big pile of stale old files).
-export function computeShittiness(r: ScanResults): Shittiness {
-  const reclaimableBytes =
+// Bytes that could actually be reclaimed with no real loss: duplicate extra
+// copies (past the one file recommended to keep), cache/temp junk, old
+// installers, and dev build output (node_modules, dist, etc).
+export function computeReclaimableBytes(r: ScanResults): number {
+  return (
     r.duplicates.reduce((sum, g) => {
       const groupTotal = g.files.reduce((s, f) => s + f.size, 0);
       return sum + (groupTotal - g.size); // total minus the one file recommended to keep
     }, 0) +
     r.cacheTemp.reduce((s, f) => s + f.size, 0) +
     r.installers.reduce((s, f) => s + f.size, 0) +
-    r.devJunk.reduce((s, f) => s + f.size, 0);
+    r.devJunk.reduce((s, f) => s + f.size, 0)
+  );
+}
 
+// A rough "how much of this folder is junk" score: mostly driven by how many
+// bytes could actually be reclaimed, with a smaller bump for clutter that's
+// annoying even when it's not much data (lots of duplicate groups, empty
+// folders, a big pile of stale old files).
+export function computeShittiness(r: ScanResults): Shittiness {
+  const reclaimableBytes = computeReclaimableBytes(r);
   const byteRatio = r.totalBytes > 0 ? reclaimableBytes / r.totalBytes : 0;
 
   const clutterScore =

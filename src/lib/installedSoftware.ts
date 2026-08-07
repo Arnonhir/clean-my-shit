@@ -1,8 +1,15 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
-import { ONE_YEAR_MS } from "./patterns";
-import type { DriveSpaceInfo, InstalledApp, SoftwareProgress } from "./types";
+import { isGameLibraryDir, ONE_YEAR_MS } from "./patterns";
+import { readAppManifests, readSteamLastPlayed } from "./steamPlaytime";
+import type {
+  DriveSpaceInfo,
+  InstalledApp,
+  RecommendationTrigger,
+  SoftwareProgress,
+  SoftwareSource,
+} from "./types";
 
 const REVIEW_STALE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const REMOVE_STALE_MS = 180 * 24 * 60 * 60 * 1000; // 6 months
@@ -57,6 +64,104 @@ function readUninstallRegistry(): RawRegistryEntry[] {
   }
 }
 
+interface RawAppxEntry {
+  Name: string;
+  Publisher: string | null;
+  InstallLocation: string | null;
+}
+
+// The Uninstall registry is what "Programs and Features" reads, but Store
+// (UWP) apps live in a completely separate package list that never shows up
+// there - Get-AppxPackage is the only way to see them. IsFramework/
+// IsResourcePackage filters out the shared-runtime noise (VCLibs, language
+// resource packs, etc.) that Windows itself doesn't show as an "app" either.
+function listAppxPackages(): RawAppxEntry[] {
+  const script = `
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+    Get-AppxPackage -ErrorAction SilentlyContinue |
+      Where-Object { $_.InstallLocation -and -not $_.IsFramework -and -not $_.IsResourcePackage } |
+      Select-Object @{n='Name';e={$_.Name}}, @{n='Publisher';e={$_.Publisher}}, @{n='InstallLocation';e={$_.InstallLocation}} |
+      ConvertTo-Json
+  `;
+  try {
+    const out = execFileSync("powershell.exe", ["-NoProfile", "-Command", script], {
+      encoding: "buffer",
+      timeout: 20000,
+      maxBuffer: 1024 * 1024 * 10,
+    });
+    const parsed = JSON.parse(out.toString("utf8"));
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    return [];
+  }
+}
+
+// Appx package names are dotted identifiers like "Microsoft.WindowsCalculator"
+// or "king.com.CandyCrushSaga" - not what Windows itself would display, but
+// there's no fast way to get the real DisplayName without opening each
+// package's manifest. Taking the last dotted segment and splitting on
+// case changes gets close enough ("WindowsCalculator" -> "Windows Calculator").
+function friendlyAppxName(rawName: string): string {
+  const lastSegment = rawName.includes(".") ? rawName.split(".").pop()! : rawName;
+  return lastSegment.replace(/([a-z0-9])([A-Z])/g, "$1 $2").trim();
+}
+
+// Appx Publisher is a full X.509 certificate subject ("CN=Skype Software
+// Sarl, O=Microsoft Corporation, L=Luxembourg, ...") - only the CN
+// component is a human name, same as what Windows itself shows for these.
+function friendlyAppxPublisher(raw: string): string {
+  const match = raw.match(/CN=([^,]+)/);
+  return match ? match[1].trim() : raw;
+}
+
+const SKIP_DIR_NAMES = new Set([
+  "windows",
+  "programdata",
+  "$recycle.bin",
+  "system volume information",
+  "recovery",
+  "msocache",
+  "perflogs",
+  "config.msi",
+]);
+
+// Looks for known game-library container folders (Steam's steamapps/common,
+// Epic Games, GOG Games, etc.) anywhere within a few levels of the drive
+// root - not just the default install path - since Steam in particular
+// lets a library live on any folder the user picked. Many of these games
+// never register an Uninstall entry at all, so without this, the registry
+// scan alone silently misses them.
+async function findGameLibraryFolders(driveRoot: string): Promise<string[]> {
+  const found: string[] = [];
+  const maxDepth = 6;
+
+  async function walk(dir: string, depth: number) {
+    if (depth > maxDepth) return;
+    let dirents;
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    const parentName = path.basename(dir);
+    for (const d of dirents) {
+      if (!d.isDirectory() || d.isSymbolicLink()) continue;
+      const lower = d.name.toLowerCase();
+      if (SKIP_DIR_NAMES.has(lower)) continue;
+      const absPath = path.join(dir, d.name);
+      if (isGameLibraryDir(lower, parentName)) {
+        found.push(absPath);
+        continue; // its children are games, not more library containers
+      }
+      await walk(absPath, depth + 1);
+    }
+  }
+
+  await walk(driveRoot, 0);
+  return found;
+}
+
 // A handful of registry entries carry stray control characters (a trailing
 // null byte has shown up in the wild) in DisplayName/Publisher - strip them
 // so they don't render as an invisible glyph in the UI.
@@ -109,55 +214,156 @@ async function folderSize(
   return { size, fileCount, lastModified };
 }
 
-function recommendationFor(size: number, lastModified: number): "remove" | "review" | "keep" {
+interface RecommendationResult {
+  recommendation: "remove" | "review" | "keep";
+  trigger: RecommendationTrigger;
+  ageDays: number;
+}
+
+function recommendationFor(size: number, lastModified: number): RecommendationResult {
   // A corrupted or clock-drifted file can carry a future timestamp, which
   // would make it look "just touched" and suppress every staleness signal.
   // Clamping to now makes that come out as "unknown age" (age 0) instead
   // of silently hiding a program that's actually a fine removal candidate.
   const effectiveLastModified = Math.min(lastModified, Date.now());
-  const age = Date.now() - effectiveLastModified;
-  if (size > REMOVE_SIZE_BYTES && age > REMOVE_STALE_MS) return "remove";
-  if (size > REVIEW_SIZE_BYTES || age > REVIEW_STALE_MS) return "review";
-  return "keep";
+  const ageMs = Date.now() - effectiveLastModified;
+  const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+  const bigForRemove = size > REMOVE_SIZE_BYTES;
+  const staleForRemove = ageMs > REMOVE_STALE_MS;
+  if (bigForRemove && staleForRemove) {
+    return { recommendation: "remove", trigger: "sizeAndStale", ageDays };
+  }
+  const bigForReview = size > REVIEW_SIZE_BYTES;
+  const staleForReview = ageMs > REVIEW_STALE_MS;
+  if (bigForReview && staleForReview) {
+    return { recommendation: "review", trigger: "sizeAndStale", ageDays };
+  }
+  if (bigForReview) return { recommendation: "review", trigger: "size", ageDays };
+  if (staleForReview) return { recommendation: "review", trigger: "staleness", ageDays };
+  return { recommendation: "keep", trigger: "none", ageDays };
+}
+
+interface Candidate {
+  name: string;
+  publisher: string;
+  installDate: string;
+  source: SoftwareSource;
+  lastPlayedMs?: number; // Steam's own recorded last-played time, when known
 }
 
 export async function listInstalledApps(
+  driveLetter: string, // e.g. "C:" or "C:\" - trailing slash tolerated
   onProgress: (p: SoftwareProgress) => void
 ): Promise<{ apps: InstalledApp[]; orphanedRegistryCount: number }> {
-  onProgress({ phase: "listing", done: 0 });
-  const raw = readUninstallRegistry();
-
-  // Dedupe by install location, not display name - MSI-based installs often
-  // register the same product under two Uninstall subkeys with identical
-  // paths, and Office-style installs register once per locale (e.g. an
-  // "en-us" and matching "he-il" entry) that are the same physical install.
-  // The path is the true identifier of "one physical thing on disk"; the
-  // name is just a label that can legitimately vary for the same install.
-  const byPath = new Map<string, RawRegistryEntry>();
-  for (const entry of raw) {
-    const key = cleanInstallLocation(entry.InstallLocation ?? "").toLowerCase();
-    if (key && !byPath.has(key)) byPath.set(key, entry);
+  const normalizedDrive = driveLetter.replace(/[\\/]+$/, "");
+  const driveRoot = `${normalizedDrive}\\`;
+  const driveLower = normalizedDrive.toLowerCase();
+  function isOnDrive(absPath: string): boolean {
+    return absPath.toLowerCase().startsWith(driveLower);
   }
 
-  const candidates = [...byPath.values()];
+  onProgress({ phase: "listing", done: 0 });
+
+  // Three independent lists, merged and deduped by install path (not name)
+  // - the same physical install can legitimately appear in more than one
+  // of them (Steam does register most games in the Uninstall registry too).
+  const byPath = new Map<string, Candidate>();
+
+  const registryEntries = readUninstallRegistry();
+  for (const entry of registryEntries) {
+    const key = cleanInstallLocation(entry.InstallLocation ?? "").toLowerCase();
+    if (!key || !isOnDrive(key) || byPath.has(key)) continue;
+    byPath.set(key, {
+      name: cleanText(entry.DisplayName),
+      publisher: entry.Publisher ? cleanText(entry.Publisher) : "",
+      installDate: parseInstallDate(entry.InstallDate),
+      source: "registry",
+    });
+  }
+
+  const appxEntries = listAppxPackages();
+  for (const pkg of appxEntries) {
+    const key = cleanInstallLocation(pkg.InstallLocation ?? "").toLowerCase();
+    if (!key || !isOnDrive(key) || byPath.has(key)) continue;
+    byPath.set(key, {
+      name: friendlyAppxName(pkg.Name),
+      publisher: pkg.Publisher ? friendlyAppxPublisher(cleanText(pkg.Publisher)) : "",
+      installDate: "",
+      source: "appx",
+    });
+  }
+
+  // Playing a game essentially never touches files inside its own install
+  // folder - saves land in Documents/AppData, so folder mtime only reflects
+  // the last patch, not the last play session. Steam records the real
+  // last-played time itself (in each account's localconfig.vdf, keyed by
+  // AppID, which the library's own appmanifest_*.acf maps back to from a
+  // folder name) - fetched lazily, once, only if a Steam library shows up.
+  let lastPlayedByAppId: Map<string, number> | null = null;
+  async function steamLastPlayed(): Promise<Map<string, number>> {
+    if (!lastPlayedByAppId) {
+      const drives = await getDriveSpace();
+      lastPlayedByAppId = await readSteamLastPlayed(drives.map((d) => d.name.replace(/[\\/]+$/, "")));
+    }
+    return lastPlayedByAppId;
+  }
+
+  const libraryDirs = await findGameLibraryFolders(driveRoot);
+  for (const libDir of libraryDirs) {
+    let children;
+    try {
+      children = await fs.readdir(libDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    const isSteamLibrary = path.basename(libDir).toLowerCase() === "common";
+    let installDirToAppId: Map<string, string> | null = null;
+    if (isSteamLibrary) {
+      installDirToAppId = await readAppManifests(path.dirname(libDir));
+    }
+
+    for (const c of children) {
+      if (!c.isDirectory()) continue;
+      const absPath = path.join(libDir, c.name);
+      const key = absPath.toLowerCase();
+      if (byPath.has(key)) continue;
+
+      let lastPlayedMs: number | undefined;
+      const appId = installDirToAppId?.get(c.name.toLowerCase());
+      if (appId) {
+        const lastPlayedMap = await steamLastPlayed();
+        lastPlayedMs = lastPlayedMap.get(appId);
+      }
+
+      byPath.set(key, {
+        name: c.name.replace(/_/g, " ").trim(),
+        publisher: "",
+        installDate: "",
+        source: "gameFolder",
+        lastPlayedMs,
+      });
+    }
+  }
+
+  const candidates = [...byPath.entries()];
   let orphanedRegistryCount = 0;
   const apps: InstalledApp[] = [];
 
   for (let i = 0; i < candidates.length; i++) {
-    const entry = candidates[i];
+    const [cleanedPath, info] = candidates[i];
     onProgress({
       phase: "measuring",
       done: i,
       total: candidates.length,
-      currentName: entry.DisplayName,
+      currentName: info.name,
     });
 
-    const cleanedPath = cleanInstallLocation(entry.InstallLocation ?? "");
     let statResult;
     try {
       statResult = await fs.stat(cleanedPath);
     } catch {
-      orphanedRegistryCount++;
+      if (info.source === "registry") orphanedRegistryCount++;
       continue;
     }
 
@@ -167,16 +373,25 @@ export async function listInstalledApps(
     const { size, fileCount, lastModified } = await folderSize(measurePath);
     if (fileCount === 0) continue;
 
+    // Take whichever signal is more recent - Steam's LastPlayed for actual
+    // play sessions, folder mtime for everything else (including a patch
+    // landing after the last time it was played).
+    const effectiveLastModified = Math.max(lastModified, info.lastPlayedMs ?? 0);
+
+    const rec = recommendationFor(size, effectiveLastModified || Date.now() - ONE_YEAR_MS);
     apps.push({
       id: measurePath,
-      name: cleanText(entry.DisplayName),
-      publisher: entry.Publisher ? cleanText(entry.Publisher) : "",
+      name: info.name,
+      publisher: info.publisher,
       absPath: measurePath,
       size,
       fileCount,
-      lastModified,
-      installDate: parseInstallDate(entry.InstallDate),
-      recommendation: recommendationFor(size, lastModified || Date.now() - ONE_YEAR_MS),
+      lastModified: effectiveLastModified,
+      installDate: info.installDate,
+      recommendation: rec.recommendation,
+      recommendationTrigger: rec.trigger,
+      ageDays: rec.ageDays,
+      source: info.source,
     });
   }
 

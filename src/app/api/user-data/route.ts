@@ -1,10 +1,8 @@
-import { listInstalledApps } from "@/lib/installedSoftware";
+import { analyzeUserDataFolders } from "@/lib/userData";
 
-// Streams progress the same way /api/scan does - measuring real disk usage
-// for each installed program (a readdir+stat walk per app) can take a few
-// seconds with 40+ programs installed, so a live "measuring App X" beats a
-// silent wait. Scoped to a single drive (query param `drive`, e.g. "C:") -
-// analyzing every drive automatically would make picking one pointless.
+// Streams progress the same way the other Drive Analysis routes do - each
+// folder here is a full "Clean up files"-style scan (including content
+// hashing for duplicates), so a handful of folders can take a while.
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const drive = searchParams.get("drive");
@@ -17,10 +15,10 @@ export async function GET(request: Request) {
       };
       try {
         if (!drive) throw new Error("Missing drive parameter");
-        const { apps, orphanedRegistryCount } = await listInstalledApps(drive, (progress) =>
+        const results = await analyzeUserDataFolders(drive, (progress) =>
           send({ type: "progress", progress })
         );
-        send({ type: "done", results: { drive, apps, orphanedRegistryCount } });
+        send({ type: "done", results });
       } catch (err) {
         send({ type: "error", error: err instanceof Error ? err.message : String(err) });
       } finally {
