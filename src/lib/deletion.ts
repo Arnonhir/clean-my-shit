@@ -15,6 +15,32 @@ export interface DeleteOutcome {
 // still reporting progress often enough for a meaningful progress bar.
 const CHUNK_SIZE = 100;
 
+// trash() shells out to a helper process, and a single problematic path (a
+// file locked in a way Windows doesn't fail fast on, an unresponsive cloud-
+// sync placeholder) can leave that call hanging indefinitely. Without a cap,
+// one stuck item stalls every chunk queued after it - the operation never
+// reaches "done", nothing past that point ever gets attempted, and the user
+// sees no error at all, just files that were supposedly deleted but weren't.
+// Bounding each attempt guarantees the loop always keeps moving.
+const CHUNK_TIMEOUT_MS = 20_000;
+const ITEM_TIMEOUT_MS = 8_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
 // trash() resolving without throwing turned out not to be reliable proof
 // the file is actually gone - it's been observed reporting success on a
 // path that's still there afterward (a cloud-only OneDrive placeholder or a
@@ -30,15 +56,15 @@ async function stillExists(absPath: string): Promise<boolean> {
 
 async function deleteChunk(chunk: DeleteRequestItem[]): Promise<DeleteOutcome> {
   try {
-    await trash(chunk.map((i) => i.absPath));
+    await withTimeout(trash(chunk.map((i) => i.absPath)), CHUNK_TIMEOUT_MS);
   } catch {
-    // Something in the batch threw - retry one at a time just for this
-    // chunk, so a single bad item doesn't take the rest down with it.
-    // Whether these succeed or throw again, the existence check below is
-    // what actually decides success/failure either way.
+    // Something in the batch threw or timed out - retry one at a time just
+    // for this chunk, so a single bad item doesn't take the rest down with
+    // it. Whether these succeed, throw, or time out again, the existence
+    // check below is what actually decides success/failure either way.
     for (const item of chunk) {
       try {
-        await trash([item.absPath]);
+        await withTimeout(trash([item.absPath]), ITEM_TIMEOUT_MS);
       } catch {
         // leave it - reported as failed below if it's still on disk
       }

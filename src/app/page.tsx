@@ -5,6 +5,7 @@ import { formatBytes } from "@/lib/format";
 import { useLanguage } from "@/lib/useLanguage";
 import { streamNdjson } from "@/lib/streamNdjson";
 import { computeEta, type EtaTracker } from "@/lib/eta";
+import { computeReclaimableBytes, computeShittiness } from "@/lib/shittiness";
 import type {
   EmptyFolder,
   FolderAggregate,
@@ -57,6 +58,27 @@ const PHASE_LABEL_KEYS: Record<ScanProgress["phase"], TranslationKey> = {
   done: "hashing",
 };
 
+const TAB_LABEL_KEYS: Record<TabId, TranslationKey> = {
+  old: "tabOld",
+  duplicates: "tabDuplicates",
+  big: "tabBig",
+  games: "tabGames",
+  cache: "tabCache",
+  installers: "tabInstallers",
+  newInstallers: "tabNewInstallers",
+  documents: "tabDocuments",
+  empty: "tabEmpty",
+  devjunk: "tabDevJunk",
+};
+
+const TIER_LABEL_KEYS: Record<0 | 1 | 2 | 3 | 4, TranslationKey> = {
+  0: "shittyTier0Label",
+  1: "shittyTier1Label",
+  2: "shittyTier2Label",
+  3: "shittyTier3Label",
+  4: "shittyTier4Label",
+};
+
 export default function Home() {
   const { lang, setLang, t, dir } = useLanguage();
   const [mode, setMode] = useState<"files" | "software">("software");
@@ -73,9 +95,22 @@ export default function Home() {
   const [deleteProgress, setDeleteProgress] = useState<
     { done: number; total: number; etaSeconds?: number } | null
   >(null);
-  const [lastDeleteSummary, setLastDeleteSummary] = useState<
-    { text: string; hadFailures: boolean } | null
-  >(null);
+  const [lastDeleteSummary, setLastDeleteSummary] = useState<{
+    deletedCount: number;
+    deletedBytes: number;
+    failedCount: number;
+    categoryLabelKey: TranslationKey;
+    categoryRemainingCount: number;
+    categoryRemainingBytes: number;
+    folderRemainingBytes: number;
+    folderRemainingFiles: number;
+    folderRemainingReclaimableBytes: number;
+    shittinessBefore: number;
+    shittinessAfter: number;
+    shittinessTierBefore: 0 | 1 | 2 | 3 | 4;
+    shittinessTierAfter: 0 | 1 | 2 | 3 | 4;
+    hadFailures: boolean;
+  } | null>(null);
   const scanEtaRef = useRef<EtaTracker | null>(null);
   const deleteEtaRef = useRef<EtaTracker | null>(null);
 
@@ -162,11 +197,10 @@ export default function Home() {
     [selected]
   );
 
-  // Every selectable item in the active tab, as {id, absPath, recursive, size}.
-  // For duplicates, the recommended "keep" copy (oldest per group) is left
-  // out — selecting all shouldn't delete every copy including the original.
-  const categoryItems = useMemo(() => {
-    if (!results) return [];
+  // Every selectable item in a tab, as {id, absPath, recursive, size}. For
+  // duplicates, the recommended "keep" copy (oldest per group) is left out -
+  // selecting all shouldn't delete every copy including the original.
+  function getCategoryItems(r: ScanResults, category: TabId) {
     const fileItem = (f: ScannedFile) => ({
       id: f.id,
       absPath: f.absPath,
@@ -179,33 +213,38 @@ export default function Home() {
       recursive: true,
       size: "size" in f ? f.size : 0,
     });
-    switch (tab) {
+    switch (category) {
       case "duplicates":
-        return results.duplicates.flatMap((g) =>
+        return r.duplicates.flatMap((g) =>
           g.files.filter((f) => f.id !== g.recommendedKeepId).map(fileItem)
         );
       case "old":
-        return results.oldFiles.map(fileItem);
+        return r.oldFiles.map(fileItem);
       case "big":
-        return results.bigFiles.map(fileItem);
+        return r.bigFiles.map(fileItem);
       case "cache":
-        return results.cacheTemp.map(fileItem);
+        return r.cacheTemp.map(fileItem);
       case "installers":
-        return results.installers.map(fileItem);
+        return r.installers.map(fileItem);
       case "newInstallers":
-        return results.newInstallers.map(fileItem);
+        return r.newInstallers.map(fileItem);
       case "documents":
-        return results.unusedDocuments.map(fileItem);
+        return r.unusedDocuments.map(fileItem);
       case "games":
-        return results.unplayedGames.map(folderItem);
+        return r.unplayedGames.map(folderItem);
       case "empty":
-        return results.emptyFolders.map(folderItem);
+        return r.emptyFolders.map(folderItem);
       case "devjunk":
-        return results.devJunk.map(folderItem);
+        return r.devJunk.map(folderItem);
       default:
         return [];
     }
-  }, [results, tab]);
+  }
+
+  const categoryItems = useMemo(
+    () => (results ? getCategoryItems(results, tab) : []),
+    [results, tab]
+  );
 
   const allCategorySelected =
     categoryItems.length > 0 && categoryItems.every((i) => selected.has(i.id));
@@ -263,22 +302,47 @@ export default function Home() {
         return sum + (s ? s.size : 0);
       }, 0);
 
-    setResults((prev) => (prev ? removeDeleted(prev, deletedIds) : prev));
+    const shittinessBefore = results ? computeShittiness(results) : null;
+    const freedFiles = results ? countDeletedFiles(results, tab, deletedIds) : deletedIds.size;
+    const updatedResults = results ? removeDeleted(results, deletedIds) : null;
+    setResults(updatedResults);
     setSelected((prev) => {
       const next = new Map(prev);
       for (const id of deletedIds) next.delete(id);
       return next;
     });
 
-    let summary = t("deleteSummaryDone", {
-      count: outcome.succeeded.length,
-      size: formatBytes(freedBytes),
-    });
-    const hadFailures = outcome.failed.length > 0;
-    if (hadFailures) {
-      summary += " " + t("deleteSummaryFailed", { count: outcome.failed.length });
+    if (updatedResults && shittinessBefore) {
+      const remainingCategoryItems = getCategoryItems(updatedResults, tab);
+      // updatedResults.totalBytes/totalFiles are left as the original scan
+      // reported them - the per-subfolder breakdown used elsewhere (the
+      // "what's using the space" chart) isn't recomputed post-delete either,
+      // and shrinking one without the other would put them out of sync
+      // (percentages over 100%). These two adjusted numbers are for the
+      // summary banner only, not written back into shared state.
+      const folderRemainingBytes = updatedResults.totalBytes - freedBytes;
+      const folderRemainingFiles = updatedResults.totalFiles - freedFiles;
+      const shittinessAfter = computeShittiness({
+        ...updatedResults,
+        totalBytes: folderRemainingBytes,
+      });
+      setLastDeleteSummary({
+        deletedCount: outcome.succeeded.length,
+        deletedBytes: freedBytes,
+        failedCount: outcome.failed.length,
+        categoryLabelKey: TAB_LABEL_KEYS[tab],
+        categoryRemainingCount: remainingCategoryItems.length,
+        categoryRemainingBytes: remainingCategoryItems.reduce((s, i) => s + i.size, 0),
+        folderRemainingBytes,
+        folderRemainingFiles,
+        folderRemainingReclaimableBytes: computeReclaimableBytes(updatedResults),
+        shittinessBefore: shittinessBefore.score,
+        shittinessAfter: shittinessAfter.score,
+        shittinessTierBefore: shittinessBefore.tier,
+        shittinessTierAfter: shittinessAfter.tier,
+        hadFailures: outcome.failed.length > 0,
+      });
     }
-    setLastDeleteSummary({ text: summary, hadFailures });
 
     setDeleting(false);
     setDeleteProgress(null);
@@ -345,15 +409,58 @@ export default function Home() {
       )}
 
       {lastDeleteSummary && (
-        <p
-          className={`mt-4 rounded-md border p-3 text-sm ${
+        <div
+          className={`mt-4 space-y-1 rounded-md border p-3 text-sm ${
             lastDeleteSummary.hadFailures
               ? "border-amber-900 bg-amber-950/40 text-amber-200"
               : "border-teal-900 bg-teal-950/50 text-teal-300"
           }`}
         >
-          {lastDeleteSummary.hadFailures ? "⚠️" : "✅"} {lastDeleteSummary.text}
-        </p>
+          <p>
+            {lastDeleteSummary.hadFailures ? "⚠️" : "✅"}{" "}
+            {t("deleteSummaryDone", {
+              count: lastDeleteSummary.deletedCount,
+              size: formatBytes(lastDeleteSummary.deletedBytes),
+              category: t(lastDeleteSummary.categoryLabelKey),
+            })}
+            {lastDeleteSummary.hadFailures &&
+              " " + t("deleteSummaryFailed", { count: lastDeleteSummary.failedCount })}
+          </p>
+          <p className="text-xs opacity-80">
+            {lastDeleteSummary.categoryRemainingCount > 0
+              ? t("deleteSummaryCategoryRemaining", {
+                  count: lastDeleteSummary.categoryRemainingCount,
+                  size: formatBytes(lastDeleteSummary.categoryRemainingBytes),
+                })
+              : t("deleteSummaryCategoryClear")}
+          </p>
+          <p className="text-xs opacity-80">
+            {t("deleteSummaryFolderTotal", {
+              size: formatBytes(lastDeleteSummary.folderRemainingBytes),
+              files: lastDeleteSummary.folderRemainingFiles.toLocaleString(),
+            })}
+          </p>
+          <p className="text-xs opacity-80">
+            {lastDeleteSummary.folderRemainingReclaimableBytes > 0
+              ? t("deleteSummaryFolderRemaining", {
+                  size: formatBytes(lastDeleteSummary.folderRemainingReclaimableBytes),
+                })
+              : t("deleteSummaryFolderClear")}
+          </p>
+          <p className="text-xs opacity-80">
+            {lastDeleteSummary.shittinessAfter < lastDeleteSummary.shittinessBefore
+              ? t("deleteSummaryShittinessImproved", {
+                  before: lastDeleteSummary.shittinessBefore,
+                  after: lastDeleteSummary.shittinessAfter,
+                  beforeTier: t(TIER_LABEL_KEYS[lastDeleteSummary.shittinessTierBefore]),
+                  afterTier: t(TIER_LABEL_KEYS[lastDeleteSummary.shittinessTierAfter]),
+                })
+              : t("deleteSummaryShittinessUnchanged", {
+                  score: lastDeleteSummary.shittinessAfter,
+                  tier: t(TIER_LABEL_KEYS[lastDeleteSummary.shittinessTierAfter]),
+                })}
+          </p>
+        </div>
       )}
 
       {results && (
@@ -512,6 +619,27 @@ function TabButton({
       <span aria-hidden>{icon}</span> {label} <span className="opacity-70">({count})</span>
     </button>
   );
+}
+
+// Folder-aggregate categories (games, dev junk) delete a whole tree per
+// selected id, not one file each — their fileCount is what actually leaves
+// disk. Empty-folder deletes remove zero files by definition. Every other
+// category is one file per id.
+function countDeletedFiles(r: ScanResults, category: TabId, deletedIds: Set<string>): number {
+  switch (category) {
+    case "games":
+      return r.unplayedGames
+        .filter((f) => deletedIds.has(f.id))
+        .reduce((s, f) => s + f.fileCount, 0);
+    case "devjunk":
+      return r.devJunk
+        .filter((f) => deletedIds.has(f.id))
+        .reduce((s, f) => s + f.fileCount, 0);
+    case "empty":
+      return 0;
+    default:
+      return deletedIds.size;
+  }
 }
 
 function removeDeleted(results: ScanResults, deletedIds: Set<string>): ScanResults {
