@@ -29,8 +29,9 @@ export default function UpdateButton({
     return window.cleanMyShit.onUpdateEvent((event: UpdateEvent) => {
       if (event.type === "checking") setState({ phase: "checking" });
       else if (event.type === "available") {
+        // Main process has autoDownload on, so the download already starts
+        // on its own - this is purely a UI state update, not a trigger.
         setState({ phase: "available", version: event.version });
-        window.cleanMyShit?.downloadUpdate();
       } else if (event.type === "not-available") {
         setState({ phase: "not-available" });
         setTimeout(() => setState((s) => (s.phase === "not-available" ? { phase: "idle" } : s)), 4000);

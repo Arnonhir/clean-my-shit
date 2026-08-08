@@ -133,7 +133,14 @@ ipcMain.handle("capture-screenshot", async () => {
 // autoUpdater only does anything meaningful in a packaged build (it checks
 // GitHub Releases for a newer version than app.getVersion()) - running
 // unpacked via `npm run electron` has no update feed to check against.
-autoUpdater.autoDownload = false;
+//
+// autoDownload is on so a found update starts downloading right away from
+// the main process itself, not from a renderer event handler - the app
+// should end up current on its own, without depending on the page having
+// finished loading in time to react to "update-available". Combined with
+// autoInstallOnAppQuit, a user who never touches the update button still
+// ends up on the latest version the next time they quit and reopen the app.
+autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
 function updaterLogPath() {
@@ -192,16 +199,6 @@ ipcMain.handle("check-for-updates", async () => {
   if (!app.isPackaged) return { ok: false, reason: "not-packaged" };
   try {
     await autoUpdater.checkForUpdates();
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
-  }
-});
-
-ipcMain.handle("download-update", async () => {
-  if (!app.isPackaged) return { ok: false, reason: "not-packaged" };
-  try {
-    await autoUpdater.downloadUpdate();
     return { ok: true };
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : String(err) };

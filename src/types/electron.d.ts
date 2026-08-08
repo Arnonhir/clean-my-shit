@@ -16,7 +16,6 @@ interface CleanMyShitBridge {
   captureScreenshot: () => Promise<string | null>;
   getAppVersion: () => Promise<string>;
   checkForUpdates: () => Promise<UpdateActionResult>;
-  downloadUpdate: () => Promise<UpdateActionResult>;
   quitAndInstall: () => Promise<void>;
   onUpdateEvent: (callback: (event: UpdateEvent) => void) => () => void;
 }
