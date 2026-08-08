@@ -40,9 +40,42 @@ const { owner, repo } = pkg.build.publish;
 const tag = `v${pkg.version}`;
 const headers = { Authorization: `Bearer ${env.GH_TOKEN}`, "User-Agent": "clean-my-shit-release" };
 
-const release = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`, { headers }).then(
-  (r) => r.json()
+// GitHub's "get release by tag" endpoint never returns drafts - checking
+// that one directly always looks like "not found" for a release that just
+// got created (still a draft), which used to read as success and exit 0
+// without actually publishing anything. Listing releases and filtering by
+// tag sees drafts too, and lets a genuinely missing release fail loudly
+// instead of silently.
+const allReleases = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, { headers }).then((r) =>
+  r.json()
 );
+if (!Array.isArray(allReleases)) {
+  console.error(`Couldn't list releases for ${owner}/${repo}:`, allReleases);
+  process.exit(1);
+}
+let matches = allReleases.filter((r) => r.tag_name === tag);
+if (matches.length === 0) {
+  console.error(`No release found for ${tag} after publish - electron-builder may have failed silently.`);
+  process.exit(1);
+}
+if (matches.length > 1) {
+  // electron-builder has been observed creating more than one draft release
+  // for the same tag (a race between the per-asset publish calls) - keep
+  // whichever has the most uploaded assets and delete the rest so drafts
+  // don't pile up.
+  matches.sort((a, b) => b.assets.length - a.assets.length);
+  const [keep, ...extras] = matches;
+  for (const extra of extras) {
+    await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${extra.id}`, {
+      method: "DELETE",
+      headers,
+    });
+    console.log(`Deleted duplicate draft release id=${extra.id} (${extra.assets.length} asset(s))`);
+  }
+  matches = [keep];
+}
+
+const release = matches[0];
 if (release.draft) {
   await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}`, {
     method: "PATCH",
