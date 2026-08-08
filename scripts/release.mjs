@@ -30,3 +30,26 @@ if (!env.GH_TOKEN) {
 }
 
 execSync("npx electron-builder --publish always", { stdio: "inherit", env, cwd: projectRoot });
+
+// electron-builder always creates GitHub releases as drafts (and setting
+// "draft": false in the static package.json config breaks schema validation
+// for plain, non-publish builds) - so un-draft it here instead, right after
+// publishing.
+const pkg = JSON.parse(readFileSync(path.join(projectRoot, "package.json"), "utf8"));
+const { owner, repo } = pkg.build.publish;
+const tag = `v${pkg.version}`;
+const headers = { Authorization: `Bearer ${env.GH_TOKEN}`, "User-Agent": "clean-my-shit-release" };
+
+const release = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`, { headers }).then(
+  (r) => r.json()
+);
+if (release.draft) {
+  await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}`, {
+    method: "PATCH",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ draft: false }),
+  });
+  console.log(`Published ${tag} (removed draft status)`);
+} else {
+  console.log(`${tag} was already published`);
+}

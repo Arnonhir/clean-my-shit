@@ -45,8 +45,7 @@
     "publish": {
       "provider": "github",
       "owner": "arnonhir",
-      "repo": "clean-my-shit",
-      "draft": false
+      "repo": "clean-my-shit"
     },
     "win": {
       "target": "nsis",

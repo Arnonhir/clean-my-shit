@@ -59,7 +59,7 @@ const PHASE_LABEL_KEYS: Record<ScanProgress["phase"], TranslationKey> = {
 
 export default function Home() {
   const { lang, setLang, t, dir } = useLanguage();
-  const [mode, setMode] = useState<"files" | "software">("files");
+  const [mode, setMode] = useState<"files" | "software">("software");
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<
     (ScanProgress & { etaSeconds?: number }) | null
@@ -308,16 +308,16 @@ export default function Home() {
 
       <div className="mt-4 flex gap-2">
         <button
-          onClick={() => setMode("files")}
-          className={`rounded-full px-3 py-1.5 text-sm ${mode === "files" ? "bg-teal-600 text-white" : "bg-neutral-900 text-neutral-400 hover:text-neutral-200"}`}
-        >
-          {t("modeFiles")}
-        </button>
-        <button
           onClick={() => setMode("software")}
           className={`rounded-full px-3 py-1.5 text-sm ${mode === "software" ? "bg-teal-600 text-white" : "bg-neutral-900 text-neutral-400 hover:text-neutral-200"}`}
         >
           {t("modeSoftware")}
+        </button>
+        <button
+          onClick={() => setMode("files")}
+          className={`rounded-full px-3 py-1.5 text-sm ${mode === "files" ? "bg-teal-600 text-white" : "bg-neutral-900 text-neutral-400 hover:text-neutral-200"}`}
+        >
+          {t("modeFiles")}
         </button>
       </div>
 
@@ -400,13 +400,16 @@ export default function Home() {
           </div>
 
           {categoryItems.length > 0 && (
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 onClick={toggleSelectAllCategory}
                 className="rounded-md border border-neutral-700 px-3 py-1 text-xs text-neutral-300 hover:bg-neutral-900"
               >
                 {allCategorySelected ? t("deselectAllCategory") : t("selectAllCategory")}
               </button>
+              {tab === "duplicates" && (
+                <p className="text-xs text-neutral-500">{t("selectAllDuplicatesNote")}</p>
+              )}
             </div>
           )}
 
