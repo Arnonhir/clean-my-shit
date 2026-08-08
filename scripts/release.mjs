@@ -60,17 +60,35 @@ if (matches.length === 0) {
 }
 if (matches.length > 1) {
   // electron-builder has been observed creating more than one draft release
-  // for the same tag (a race between the per-asset publish calls) - keep
-  // whichever has the most uploaded assets and delete the rest so drafts
-  // don't pile up.
+  // for the same tag (a race between the per-asset publish calls), each
+  // ending up with only part of the full asset set. Consolidate onto
+  // whichever has the most assets - copying over any the others have that
+  // it's missing - before deleting the rest, so nothing (like the
+  // differential-update blockmap) silently goes missing from the release
+  // that survives.
   matches.sort((a, b) => b.assets.length - a.assets.length);
   const [keep, ...extras] = matches;
+  const keepAssetNames = new Set(keep.assets.map((a) => a.name));
   for (const extra of extras) {
+    for (const asset of extra.assets) {
+      if (keepAssetNames.has(asset.name)) continue;
+      const assetBytes = Buffer.from(
+        await fetch(asset.url, { headers: { ...headers, Accept: "application/octet-stream" } }).then((r) =>
+          r.arrayBuffer()
+        )
+      );
+      await fetch(
+        `https://uploads.github.com/repos/${owner}/${repo}/releases/${keep.id}/assets?name=${encodeURIComponent(asset.name)}`,
+        { method: "POST", headers: { ...headers, "Content-Type": "application/octet-stream" }, body: assetBytes }
+      );
+      keepAssetNames.add(asset.name);
+      console.log(`Copied ${asset.name} from duplicate id=${extra.id} onto id=${keep.id}`);
+    }
     await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${extra.id}`, {
       method: "DELETE",
       headers,
     });
-    console.log(`Deleted duplicate draft release id=${extra.id} (${extra.assets.length} asset(s))`);
+    console.log(`Deleted duplicate draft release id=${extra.id}`);
   }
   matches = [keep];
 }
