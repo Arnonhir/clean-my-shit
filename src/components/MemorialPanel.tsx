@@ -57,11 +57,9 @@ export default function MemorialPanel() {
           אני (ארנון) זכיתי לאהוב אותה, להיות בעלה ולשמוח על הזמן הטוב שבילינו יחד. התחתנו באפריל 2025, ואני מצרף
           תמונה של שנינו. עדן תמיד תלווה אותי, והאפליקציה הזו מוקדשת לזכרה.
         </p>
+        <p className="text-center text-lg font-medium text-rose-200">יהי זכרה ברוך, נמשיך ללכת בדרכה.</p>
+        <div className="clear-left" />
       </div>
-
-      <p className="clear-left mt-6 text-center text-lg font-medium text-rose-200">
-        יהי זכרה ברוך, נמשיך ללכת בדרכה.
-      </p>
     </div>
   );
 }
