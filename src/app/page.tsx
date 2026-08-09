@@ -27,6 +27,7 @@ import ProgressBar from "@/components/ProgressBar";
 import FolderSizeBars from "@/components/FolderSizeBars";
 import FolderSunburst from "@/components/FolderSunburst";
 import SoftwarePanel from "@/components/SoftwarePanel";
+import MemorialPanel from "@/components/MemorialPanel";
 import FeedbackButton from "@/components/FeedbackButton";
 import UpdateButton from "@/components/UpdateButton";
 
@@ -81,7 +82,7 @@ const TIER_LABEL_KEYS: Record<0 | 1 | 2 | 3 | 4, TranslationKey> = {
 
 export default function Home() {
   const { lang, setLang, t, dir } = useLanguage();
-  const [mode, setMode] = useState<"files" | "software">("software");
+  const [mode, setMode] = useState<"files" | "software" | "memorial">("software");
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<
     (ScanProgress & { etaSeconds?: number }) | null
@@ -383,9 +384,17 @@ export default function Home() {
         >
           {t("modeFiles")}
         </button>
+        <button
+          onClick={() => setMode("memorial")}
+          className={`rounded-full px-3 py-1.5 text-sm ${mode === "memorial" ? "bg-rose-600 text-white" : "bg-neutral-900 text-neutral-400 hover:text-neutral-200"}`}
+        >
+          {t("modeMemorial")}
+        </button>
       </div>
 
       {mode === "software" && <SoftwarePanel t={t} onScanFolder={handleScanFromSoftware} />}
+
+      {mode === "memorial" && <MemorialPanel />}
 
       {mode === "files" && (
       <>

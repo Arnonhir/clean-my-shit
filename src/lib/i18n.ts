@@ -6,6 +6,7 @@ const dict = {
   en: {
     modeFiles: "🧹 Clean up files",
     modeSoftware: "💾 Drive analysis",
+    modeMemorial: "🕯️ In Memory of Eden",
     tagline:
       "Browse to any folder on this computer — including Downloads, Desktop, and Documents — and scan it. Everything runs locally on this machine; nothing is uploaded anywhere.",
     chooseFolder: "Choose a folder to scan",
@@ -171,6 +172,7 @@ const dict = {
   he: {
     modeFiles: "🧹 ניקוי קבצים",
     modeSoftware: "💾 ניתוח דיסק",
+    modeMemorial: "🕯️ לזכרה של עדן",
     tagline:
       "נווט/י לכל תיקייה במחשב הזה — כולל Downloads, Desktop ו-Documents — וסרוק/י אותה. הכול רץ מקומית על המחשב הזה; שום דבר לא מועלה לשום מקום.",
     chooseFolder: "בחר/י תיקייה לסריקה",
