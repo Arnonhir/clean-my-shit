@@ -11,6 +11,11 @@
 // that wait into a dead gap. With one float and continuous flow, a
 // paragraph wraps around whatever photo height remains and resumes full
 // width once past it - there's no clear point left for a gap to hide behind.
+//
+// The closing line is the one deliberate exception: it's meant to land at
+// the same height as the bottom of the last (wedding) photo, so it does
+// clear the float on purpose rather than flowing immediately after the
+// paragraph before it.
 const MEMORIAL_FONT =
   '"Segoe UI Semilight", "Segoe UI", Arial, sans-serif';
 
@@ -54,8 +59,9 @@ export default function MemorialPanel() {
           אני (ארנון) זכיתי לאהוב אותה, להיות בעלה ולשמוח על הזמן הטוב שבילינו יחד. התחתנו באפריל 2025, ואני מצרף
           תמונה של שנינו. עדן תמיד תלווה אותי, והאפליקציה הזו מוקדשת לזכרה.
         </p>
-        <p className="text-center text-lg font-medium text-rose-200">יהי זכרה ברוך, נמשיך ללכת בדרכה.</p>
-        <div className="clear-left" />
+        <p className="clear-left text-center text-lg font-medium text-rose-200">
+          יהי זכרה ברוך, נמשיך ללכת בדרכה.
+        </p>
       </div>
     </div>
   );
