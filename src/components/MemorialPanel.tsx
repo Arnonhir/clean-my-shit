@@ -2,13 +2,15 @@
 // in Hebrew regardless of the app's own language setting since it's Eden's
 // story, not a UI string meant to be translated.
 //
-// Photos float beside the text instead of sitting in a flex row next to it -
-// a flex row's height is set by its tallest child, so once the photos were
-// taller than their paired paragraphs, later paragraphs waited for the whole
-// row to end, showing up as a dead gap where the text just... stopped for a
-// while. Floats let text keep flowing immediately, wrapping around whatever
-// photo height remains and only using full width once past it - no gap
-// regardless of how the text or photos are resized later.
+// All three photos float as a single stacked column, and every paragraph
+// after it flows in plain, uninterrupted document order (no per-paragraph
+// float groups, no clear between them). Splitting the photos into separate
+// floats paired with specific paragraphs kept reproducing the same bug:
+// each clear-left made its block wait for the previous float to fully end
+// before starting, and a paragraph shorter than its paired photo turned
+// that wait into a dead gap. With one float and continuous flow, a
+// paragraph wraps around whatever photo height remains and resumes full
+// width once past it - there's no clear point left for a gap to hide behind.
 const MEMORIAL_FONT =
   '"Segoe UI Semilight", "Segoe UI", Arial, sans-serif';
 
@@ -27,6 +29,8 @@ export default function MemorialPanel() {
           <img src="/eden/photo1.jpg" alt="" className="w-full rounded-lg object-cover" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/eden/photo2.jpg" alt="" className="w-full rounded-lg object-cover" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/eden/photo3.jpg" alt="" className="w-full rounded-lg object-cover" />
         </div>
         <p className="text-justify text-lg leading-7 text-neutral-300">
           עדן הירש הייתה אישה מרשימה ומצחיקה, מלאת חיים ואהבה. עדן גדלה והתחנכה ברמת גן, וגרה תקופה קצרה בנתניה. עדן
@@ -46,13 +50,6 @@ export default function MemorialPanel() {
           ההתמודדות עם המחלה, עדן התעקשה להרים את הראש, לארח משפחה וחברים, לעשות ספורט, להתחתן, להקים עסק לתכשיטים
           ולעשות מכירות רבות, להיות פעילה, אישה אוהבת ומכילה ולא לוותר.
         </p>
-      </div>
-
-      <div className="clear-left mt-4">
-        <div className="float-left mr-4 mb-3 w-40">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/eden/photo3.jpg" alt="" className="w-full rounded-lg object-cover" />
-        </div>
         <p className="text-justify text-lg leading-7 text-neutral-300">
           אני (ארנון) זכיתי לאהוב אותה, להיות בעלה ולשמוח על הזמן הטוב שבילינו יחד. התחתנו באפריל 2025, ואני מצרף
           תמונה של שנינו. עדן תמיד תלווה אותי, והאפליקציה הזו מוקדשת לזכרה.
