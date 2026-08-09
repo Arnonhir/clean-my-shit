@@ -23,6 +23,14 @@ interface BrowseResponse {
 
 const THIS_PC = "This PC";
 
+function openFolder(absPath: string) {
+  fetch("/api/open", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ absPath }),
+  });
+}
+
 export default function FolderBrowser({
   onScan,
   onNavigate,
@@ -104,12 +112,18 @@ export default function FolderBrowser({
       {!loading && data && !data.error && (
         <>
           {data.path !== THIS_PC && (
-            <div className="mt-3 flex items-center justify-between">
+            <div className="mt-3 flex items-center gap-2">
               <button
                 onClick={() => onScan(data.path)}
                 className="rounded-md bg-teal-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-teal-500"
               >
                 {t("browseScanThis")}
+              </button>
+              <button
+                onClick={() => openFolder(data.path)}
+                className="rounded-md border border-neutral-700 px-4 py-1.5 text-sm text-neutral-200 hover:bg-neutral-900"
+              >
+                {t("browseOpenFolder")}
               </button>
             </div>
           )}
