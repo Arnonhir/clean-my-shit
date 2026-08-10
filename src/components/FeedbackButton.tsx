@@ -56,7 +56,7 @@ export default function FeedbackButton({
     <>
       <button
         onClick={handleOpen}
-        className="fixed bottom-6 end-6 z-50 flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-200 shadow-lg shadow-black/40 hover:bg-neutral-800"
+        className="fixed bottom-20 end-6 z-50 flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-200 shadow-lg shadow-black/40 hover:bg-neutral-800"
       >
         💬 {t("feedbackButton")}
       </button>

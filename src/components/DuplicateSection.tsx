@@ -3,7 +3,7 @@
 import { formatBytes, formatDate } from "@/lib/format";
 import type { DuplicateGroup, ScannedFile } from "@/lib/types";
 import type { SelectionMap } from "@/lib/selection";
-import type { TranslationKey } from "@/lib/i18n";
+import type { Lang, TranslationKey } from "@/lib/i18n";
 import FilePreview from "./FilePreview";
 
 export default function DuplicateSection({
@@ -11,11 +11,13 @@ export default function DuplicateSection({
   selected,
   onToggle,
   t,
+  lang,
 }: {
   groups: DuplicateGroup[];
   selected: SelectionMap;
   onToggle: (id: string, file: ScannedFile) => void;
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
+  lang: Lang;
 }) {
   if (groups.length === 0) {
     return (
@@ -66,7 +68,7 @@ export default function DuplicateSection({
                   <p className="break-all text-sm font-medium" title={f.name}>{f.name}</p>
                   <p className="break-all text-xs text-neutral-400" title={f.path}>{f.path}</p>
                   <p className="text-xs text-neutral-400">
-                    {t("duplicateCreated", { date: formatDate(f.lastModified) })} · {formatBytes(f.size)}
+                    {t("duplicateCreated", { date: formatDate(f.lastModified, lang) })} · {formatBytes(f.size)}
                   </p>
                   {f.id === group.recommendedKeepId && (
                     <p className="text-xs text-teal-500">

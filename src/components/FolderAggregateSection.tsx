@@ -3,6 +3,7 @@
 import { formatBytes, formatDate, daysAgo } from "@/lib/format";
 import type { FolderAggregate } from "@/lib/types";
 import type { SelectionMap } from "@/lib/selection";
+import type { Lang } from "@/lib/i18n";
 
 export default function FolderAggregateSection({
   folders,
@@ -10,12 +11,14 @@ export default function FolderAggregateSection({
   onToggle,
   emptyMessage,
   dateLabel = "Last touched",
+  lang,
 }: {
   folders: FolderAggregate[];
   selected: SelectionMap;
   onToggle: (id: string, folder: FolderAggregate) => void;
   emptyMessage: string;
   dateLabel?: string;
+  lang: Lang;
 }) {
   if (folders.length === 0) {
     return <p className="text-neutral-400 text-sm py-6 text-center">{emptyMessage}</p>;
@@ -40,7 +43,7 @@ export default function FolderAggregateSection({
           <div className="shrink-0 text-right text-xs text-neutral-400">
             <p>{formatBytes(f.size)}</p>
             <p>
-              {dateLabel} {formatDate(f.lastModified)} ({daysAgo(f.lastModified)}d ago)
+              {dateLabel} {formatDate(f.lastModified, lang)} ({daysAgo(f.lastModified)}d ago)
             </p>
           </div>
         </li>

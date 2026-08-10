@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatBytes, formatDate } from "@/lib/format";
 import { streamNdjson } from "@/lib/streamNdjson";
 import { computeEta, type EtaTracker } from "@/lib/eta";
-import type { TranslationKey } from "@/lib/i18n";
+import type { Lang, TranslationKey } from "@/lib/i18n";
 import type { DriveSpaceInfo, InstalledApp, SoftwareAnalysis, SoftwareProgress } from "@/lib/types";
 import ProgressBar from "./ProgressBar";
 import DriveSpaceBar from "./DriveSpaceBar";
@@ -68,9 +68,11 @@ function openUninstallSettings() {
 
 export default function SoftwarePanel({
   t,
+  lang,
   onScanFolder,
 }: {
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
+  lang: Lang;
   onScanFolder: (absPath: string) => void;
 }) {
   const [drives, setDrives] = useState<DriveSpaceInfo[] | null>(null);
@@ -229,7 +231,7 @@ export default function SoftwarePanel({
                             <p className="break-all text-xs text-neutral-400">
                               {app.publisher ? `${app.publisher} · ` : ""}
                               {formatBytes(app.size)}
-                              {app.lastModified ? ` · ${t("softwareLastTouched", { date: formatDate(app.lastModified) })}` : ""}
+                              {app.lastModified ? ` · ${t("softwareLastTouched", { date: formatDate(app.lastModified, lang) })}` : ""}
                               {app.installDate ? ` · ${t("softwareInstalled", { date: app.installDate })}` : ""}
                             </p>
                             {reasonKey && (

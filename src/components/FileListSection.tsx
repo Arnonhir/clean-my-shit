@@ -3,7 +3,7 @@
 import { formatBytes, formatDate } from "@/lib/format";
 import type { ScannedFile } from "@/lib/types";
 import type { SelectionMap } from "@/lib/selection";
-import type { TranslationKey } from "@/lib/i18n";
+import type { Lang, TranslationKey } from "@/lib/i18n";
 import FilePreview from "./FilePreview";
 
 function openFile(absPath: string) {
@@ -29,6 +29,7 @@ export default function FileListSection({
   emptyMessage,
   dateLabel = "Last touched",
   t,
+  lang,
 }: {
   files: ScannedFile[];
   selected: SelectionMap;
@@ -36,6 +37,7 @@ export default function FileListSection({
   emptyMessage: string;
   dateLabel?: string;
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
+  lang: Lang;
 }) {
   if (files.length === 0) {
     return <p className="text-neutral-400 text-sm py-6 text-center">{emptyMessage}</p>;
@@ -77,7 +79,7 @@ export default function FileListSection({
           <div className="shrink-0 text-right text-xs text-neutral-300">
             <p>{formatBytes(f.size)}</p>
             <p>
-              {dateLabel} {formatDate(f.lastModified)}
+              {dateLabel} {formatDate(f.lastModified, lang)}
             </p>
           </div>
         </li>

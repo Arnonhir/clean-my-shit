@@ -82,7 +82,7 @@ export default function UpdateButton({
       onClick={handleClick}
       disabled={busy}
       title={label}
-      className="fixed bottom-6 start-6 z-50 flex max-w-xs items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-200 shadow-lg shadow-black/40 hover:bg-neutral-800 disabled:opacity-70"
+      className="fixed bottom-20 start-6 z-50 flex max-w-xs items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-200 shadow-lg shadow-black/40 hover:bg-neutral-800 disabled:opacity-70"
     >
       <span className="shrink-0">{state.phase === "downloaded" ? "🚀" : "🔄"}</span>
       <span className="truncate">{label}</span>

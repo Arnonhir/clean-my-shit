@@ -1,3 +1,5 @@
+import type { Lang } from "./i18n";
+
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -9,16 +11,28 @@ export function formatBytes(bytes: number): string {
   return `${value >= 100 || i === 0 ? Math.round(value) : value.toFixed(1)} ${units[i]}`;
 }
 
-export function formatDate(ms: number): string {
-  return new Date(ms).toLocaleDateString(undefined, {
+// Locale is tied to the app's own language toggle, not the OS/browser
+// default - letting it fall back to the system locale meant a Hebrew-
+// configured Windows install would render a Hebrew month name (e.g.
+// "15 במרץ 2026") inside an English-language row. Mixing an RTL date
+// string into an LTR sentence (or vice versa) hands the browser's bidi
+// algorithm two conflicting directions to reconcile, which is what
+// produced the scrambled "15 3.4 · 2026 במרץ MB" the date and size
+// collapsed into - not a formatting bug in the numbers themselves.
+function localeFor(lang: Lang): string {
+  return lang === "he" ? "he-IL" : "en-US";
+}
+
+export function formatDate(ms: number, lang: Lang = "en"): string {
+  return new Date(ms).toLocaleDateString(localeFor(lang), {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
 
-export function formatDateTime(ms: number): string {
-  return new Date(ms).toLocaleString(undefined, {
+export function formatDateTime(ms: number, lang: Lang = "en"): string {
+  return new Date(ms).toLocaleString(localeFor(lang), {
     year: "numeric",
     month: "short",
     day: "numeric",

@@ -392,7 +392,7 @@ export default function Home() {
         </button>
       </div>
 
-      {mode === "software" && <SoftwarePanel t={t} onScanFolder={handleScanFromSoftware} />}
+      {mode === "software" && <SoftwarePanel t={t} lang={lang} onScanFolder={handleScanFromSoftware} />}
 
       {mode === "memorial" && <MemorialPanel />}
 
@@ -531,34 +531,34 @@ export default function Home() {
 
           <div className="mt-4">
             {tab === "duplicates" && (
-              <DuplicateSection groups={results.duplicates} selected={selected} onToggle={toggleFile} t={t} />
+              <DuplicateSection groups={results.duplicates} selected={selected} onToggle={toggleFile} t={t} lang={lang} />
             )}
             {tab === "old" && (
-              <FileListSection files={results.oldFiles} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyOld")} dateLabel={t("dateLastTouched")} t={t} />
+              <FileListSection files={results.oldFiles} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyOld")} dateLabel={t("dateLastTouched")} t={t} lang={lang} />
             )}
             {tab === "big" && (
-              <FileListSection files={results.bigFiles} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyBig")} dateLabel={t("dateLastTouched")} t={t} />
+              <FileListSection files={results.bigFiles} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyBig")} dateLabel={t("dateLastTouched")} t={t} lang={lang} />
             )}
             {tab === "games" && (
-              <FolderAggregateSection folders={results.unplayedGames} selected={selected} onToggle={toggleFolder} emptyMessage={t("emptyGames")} dateLabel={t("dateLastPlayed")} />
+              <FolderAggregateSection folders={results.unplayedGames} selected={selected} onToggle={toggleFolder} emptyMessage={t("emptyGames")} dateLabel={t("dateLastPlayed")} lang={lang} />
             )}
             {tab === "cache" && (
-              <FileListSection files={results.cacheTemp} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyCache")} dateLabel={t("dateLastTouched")} t={t} />
+              <FileListSection files={results.cacheTemp} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyCache")} dateLabel={t("dateLastTouched")} t={t} lang={lang} />
             )}
             {tab === "installers" && (
-              <FileListSection files={results.installers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyInstallers")} dateLabel={t("dateDownloaded")} t={t} />
+              <FileListSection files={results.installers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyInstallers")} dateLabel={t("dateDownloaded")} t={t} lang={lang} />
             )}
             {tab === "newInstallers" && (
-              <FileListSection files={results.newInstallers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyNewInstallers")} dateLabel={t("dateDownloaded")} t={t} />
+              <FileListSection files={results.newInstallers} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyNewInstallers")} dateLabel={t("dateDownloaded")} t={t} lang={lang} />
             )}
             {tab === "documents" && (
-              <FileListSection files={results.unusedDocuments} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyDocuments")} dateLabel={t("dateLastTouched")} t={t} />
+              <FileListSection files={results.unusedDocuments} selected={selected} onToggle={toggleFile} emptyMessage={t("emptyDocuments")} dateLabel={t("dateLastTouched")} t={t} lang={lang} />
             )}
             {tab === "empty" && (
               <EmptyFolderSection folders={results.emptyFolders} selected={selected} onToggle={toggleFolder} emptyMessage={t("emptyEmptyFolders")} />
             )}
             {tab === "devjunk" && (
-              <FolderAggregateSection folders={results.devJunk} selected={selected} onToggle={toggleFolder} emptyMessage={t("emptyDevJunk")} dateLabel={t("dateLastBuilt")} />
+              <FolderAggregateSection folders={results.devJunk} selected={selected} onToggle={toggleFolder} emptyMessage={t("emptyDevJunk")} dateLabel={t("dateLastBuilt")} lang={lang} />
             )}
           </div>
         </div>
